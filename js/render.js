@@ -8,7 +8,7 @@ const Render = (() => {
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
   const NOTE_PAL = {
     tap: { top: '#ffffff', mid: '#dcd6ff', side: '#9fa8ff', edge: '#b3a4ff', cap: '#6474ff' },
-    hold: { top: '#f0fff8', mid: '#b3f5da', side: '#46c79d', edge: '#6fe0b8', cap: '#1fae86' },
+    hold: { top: '#d9ffe9', mid: '#7cf0b0', side: '#2fbf7f', edge: '#4fe39a', cap: '#12a868' },
     flick: { top: '#fff0f7', mid: '#ffc2dd', side: '#ff6fa6', edge: '#ff8fbd', cap: '#ff3d86' },
   };
   // Score rank thresholds (score / max score); shared with the results screen.
@@ -33,6 +33,7 @@ const Render = (() => {
     g = cv.getContext('2d');
     resize();
     window.addEventListener('resize', resize);
+    if (document.fonts) for (const w of [800, 900]) document.fonts.load(`${w} 20px "M PLUS Rounded 1c"`).catch(() => {});
   }
 
   function setCover(url) {
@@ -312,7 +313,7 @@ const Render = (() => {
       const d0 = n.state === 1 ? 0 : Math.max(near, (n.time - t) / LOOKAHEAD), d1 = Math.min(far, (n.tail.time - t) / LOOKAHEAD);
       if (d1 <= d0) continue;
       quad(G, d0, d1, laneU(n.lane) + 0.07, laneU(n.lane + 1) - 0.07);
-      g.fillStyle = n.held ? 'rgba(120,255,210,0.55)' : 'rgba(120,255,210,0.32)';
+      g.fillStyle = n.held ? 'rgba(110,255,190,0.5)' : 'rgba(110,255,190,0.3)';
       g.fill();
       if (d1 < far) drawNote(G, d1, n.lane, 'hold', 0.85);
     }
@@ -342,12 +343,25 @@ const Render = (() => {
     for (const n of s.notes) {
       if (n.type !== 'hold' || !n.held) continue;
       const pulse = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 20);
-      g.globalAlpha = 0.55 * pulse;
-      quad(G, j0, 0.06, laneU(n.lane) + 0.02, laneU(n.lane + 1) - 0.02);
-      const c0 = proj(G, j0, 0).y, c1 = proj(G, 0.06, 0).y;
+      const u0 = laneU(n.lane) + 0.02, u1 = laneU(n.lane + 1) - 0.02;
+      g.globalAlpha = 0.8 * pulse;
+      quad(G, 0, 3, u0, u1);
+      const c0 = proj(G, 0, 0).y, c1 = proj(G, 3, 0).y;
       const bg2 = g.createLinearGradient(0, c0, 0, c1);
-      bg2.addColorStop(0, 'rgba(120,255,235,0.9)'); bg2.addColorStop(1, 'rgba(120,255,235,0.1)');
+      bg2.addColorStop(0, 'rgba(120,255,200,0.75)'); bg2.addColorStop(0.5, 'rgba(110,240,230,0.35)'); bg2.addColorStop(1, 'rgba(110,240,230,0.05)');
       g.fillStyle = bg2; g.fill();
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+      g.shadowColor = '#6dffb0'; g.shadowBlur = 18;
+      drawNote(G, 0, n.lane, 'hold', 1);
+      g.shadowBlur = 0;
+      g.globalCompositeOperation = 'lighter';
+      if (!reduced) {
+        const c = proj(G, 0, (u0 + u1) / 2), unit = G.half / LANES, k = (t * 3) % 1;
+        g.strokeStyle = '#ffffff'; g.globalAlpha = 0.8 * (1 - k); g.lineWidth = 2;
+        diamond(c.x, c.y, unit * (0.3 + 0.6 * k), 0.45); g.stroke();
+        g.globalAlpha = 1;
+      }
     }
     g.globalAlpha = 1;
 
@@ -396,13 +410,18 @@ const Render = (() => {
       const jb = Math.max(16, H * 0.05);
       g.font = `900 ${jb}px ${FONT}`;
       const label = j.toUpperCase(), tw = g.measureText(label).width / 2;
-      const tg = g.createLinearGradient(0, -jb / 2, 0, jb / 2);
-      const [c0, c1] = JUDGE_GRAD[j];
-      tg.addColorStop(0, c0); tg.addColorStop(1, c1);
-      g.lineWidth = jb * 0.12; g.strokeStyle = 'rgba(30,15,60,0.75)'; g.lineJoin = 'round';
+      let tg;
+      if (j === 'perfect') {
+        tg = g.createLinearGradient(-tw, -jb / 2, tw, jb / 2);
+        ['#ffc4ec', '#fff3b0', '#c8fff0', '#b8d8ff', '#e8c8ff'].forEach((c, i, a) => tg.addColorStop(i / (a.length - 1), c));
+      } else {
+        const [c0, c1] = JUDGE_GRAD[j];
+        tg = g.createLinearGradient(0, -jb / 2, 0, jb / 2);
+        tg.addColorStop(0, c0); tg.addColorStop(1, c1);
+      }
+      g.lineWidth = jb * 0.14; g.strokeStyle = 'rgba(60,40,110,0.55)'; g.lineJoin = 'round';
       g.strokeText(label, 0, 0);
       g.fillStyle = tg; g.fillText(label, 0, 0);
-      if (j === 'perfect' && !reduced) { g.globalAlpha = 0.35; g.fillStyle = '#fff'; g.fillRect(-tw, -2, tw * 2, 3); g.globalAlpha = 1; }
       g.restore();
       if (j === 'great' || j === 'good') {
         const early = s.lastJudge.dt < 0;
@@ -416,17 +435,21 @@ const Render = (() => {
       const ca = t - comboAt;
       const bs = reduced || ca < 0 || ca > FX.bounce ? 1 : 1 + 0.22 * (1 - ca / FX.bounce) ** 2;
       const cx = Math.min(W - SA.r - big * 1.8, G.cx + G.half * 1.18), cy = H * 0.44;
-      g.font = `800 ${big * 0.38}px ${FONT}`;
-      g.fillStyle = '#ffd6f4';
-      g.fillText('C O M B O', cx, cy - big * 0.95);
+      g.font = `900 ${big * 0.42}px ${FONT}`;
+      g.shadowColor = '#b36bff'; g.shadowBlur = 10;
+      g.fillStyle = '#e4ccff';
+      g.fillText('COMBO', cx, cy - big * 1.0);
+      g.shadowBlur = 0;
       g.save();
       g.translate(cx, cy);
       g.scale(bs, bs);
       g.font = `900 ${big * 1.35}px ${FONT}`;
       const cg = g.createLinearGradient(0, -big * 0.7, 0, big * 0.7);
-      cg.addColorStop(0, '#ffffff'); cg.addColorStop(1, '#ffb3e6');
-      g.lineWidth = big * 0.12; g.strokeStyle = 'rgba(120,40,160,0.8)'; g.lineJoin = 'round';
+      cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.55, '#ffffff'); cg.addColorStop(1, '#e2c4ff');
+      g.shadowColor = '#8e4dff'; g.shadowBlur = 14;
+      g.lineWidth = big * 0.1; g.strokeStyle = 'rgba(120,70,200,0.7)'; g.lineJoin = 'round';
       g.strokeText(String(s.combo), 0, 0);
+      g.shadowBlur = 0;
       g.fillStyle = cg; g.fillText(String(s.combo), 0, 0);
       g.restore();
     }
@@ -503,23 +526,26 @@ const Render = (() => {
     const pb = Math.min(60, Math.max(40, H * 0.09));
     const lr = W - Math.max(SA.r + 8, W * 0.05) - pb - u * 0.2, lw = Math.min(W * 0.16, u * 3), lx = lr - lw;
     const life = Math.max(0, s.life ?? 1000), lk = life / 1000;
-    capsule(lx - u * 0.42, y0 + u * 0.36, lw + u * 0.54, u * 0.38);
-    pill(lx + u * 0.05, y0 + u * 0.1, u * 0.85, u * 0.3, 'LIFE', u);
-    g.textAlign = 'right'; g.textBaseline = 'middle';
-    g.font = `800 ${u * 0.3}px ${FONT}`;
-    g.fillStyle = '#fff'; g.fillText(String(life), lr, y0 + u * 0.24);
-    const ly = y0 + u * 0.46, lh = u * 0.18;
-    rrect(g, lx, ly, lw, lh, lh / 2);
-    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
-    if (lk > 0) { rrect(g, lx + 2, ly + 2, Math.max(lh - 4, (lw - 4) * lk), lh - 4, (lh - 4) / 2); g.fillStyle = lk < 0.3 ? '#ff6b6b' : '#6dea8a'; g.fill(); }
-    // heart
-    const hx = lx - u * 0.02, hy = ly + lh / 2, hr = u * 0.16;
-    g.fillStyle = '#6dea8a';
+    // capsule with the heart inside on the left, bar to its right; LIFE tab and value sit on its top edge
+    const cy = y0 + u * 0.36, ch = u * 0.34, cx0 = lx - u * 0.45;
+    capsule(cx0, cy, lr - cx0, ch);
+    const hx = cx0 + u * 0.22, hy = cy + ch / 2 + u * 0.02, hr = u * 0.15;
+    g.fillStyle = '#7cf0a0';
     g.beginPath();
     g.moveTo(hx, hy + hr * 0.9);
     g.bezierCurveTo(hx - hr * 1.4, hy - hr * 0.1, hx - hr * 0.6, hy - hr * 1.2, hx, hy - hr * 0.4);
     g.bezierCurveTo(hx + hr * 0.6, hy - hr * 1.2, hx + hr * 1.4, hy - hr * 0.1, hx, hy + hr * 0.9);
     g.fill();
+    const bx = hx + u * 0.26, bwid = lr - u * 0.12 - bx, lh = u * 0.13, ly = cy + (ch - lh) / 2;
+    rrect(g, bx, ly, bwid, lh, lh / 2);
+    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
+    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, bwid * lk), lh, lh / 2); g.fillStyle = lk < 0.3 ? '#ff6b6b' : '#7cf0a0'; g.fill(); }
+    pill(cx0 + u * 0.25, y0 + u * 0.06, u * 0.85, u * 0.28, 'LIFE', u);
+    g.textAlign = 'right'; g.textBaseline = 'alphabetic';
+    g.font = `800 ${u * 0.32}px ${FONT}`;
+    g.lineWidth = u * 0.05; g.strokeStyle = 'rgba(30,15,60,0.6)'; g.lineJoin = 'round';
+    g.strokeText(String(life), lr - u * 0.12, cy + u * 0.06);
+    g.fillStyle = '#fff'; g.fillText(String(life), lr - u * 0.12, cy + u * 0.06);
   }
 
   // Translucent rounded frame that holds a bar (score / life).
