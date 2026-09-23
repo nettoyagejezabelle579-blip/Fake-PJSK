@@ -557,15 +557,15 @@ const Render = (() => {
     const hs = ch * 0.58, hx = cx0 + ch * 0.55, hy = cy + ch * 0.5;
     // round lobes + pointed tip as one path; the lower curves leave each lobe along its tangent (no side notches)
     const H_ = (x, y) => [hx + x * hs, hy + y * hs], A0 = Math.PI * 0.8, A1 = Math.PI * 0.2;
-    const tip = H_(0, 0.37), lp = H_(-0.25 + 0.27 * Math.cos(A0), -0.13 + 0.27 * Math.sin(A0)), rp = H_(0.25 + 0.27 * Math.cos(A1), -0.13 + 0.27 * Math.sin(A1));
+    const tip = H_(0, 0.45), lp = H_(-0.25 + 0.27 * Math.cos(A0), -0.13 + 0.27 * Math.sin(A0)), rp = H_(0.25 + 0.27 * Math.cos(A1), -0.13 + 0.27 * Math.sin(A1));
     const tx = 0.15 * Math.sin(A0) * hs, ty = 0.15 * Math.cos(A0) * hs;
     g.fillStyle = lc;
     g.beginPath();
     g.moveTo(...tip);
-    g.bezierCurveTo(tip[0] - hs * 0.15, tip[1] - hs * 0.08, lp[0] + tx, lp[1] - ty, lp[0], lp[1]);
+    g.bezierCurveTo(tip[0] - hs * 0.17, tip[1] - hs * 0.11, lp[0] + tx, lp[1] - ty, lp[0], lp[1]);
     g.arc(hx - hs * 0.25, hy - hs * 0.13, hs * 0.27, A0, Math.PI * 2);
     g.arc(hx + hs * 0.25, hy - hs * 0.13, hs * 0.27, Math.PI, Math.PI * 2 + A1);
-    g.bezierCurveTo(rp[0] - tx, rp[1] - ty, tip[0] + hs * 0.15, tip[1] - hs * 0.08, tip[0], tip[1]);
+    g.bezierCurveTo(rp[0] - tx, rp[1] - ty, tip[0] + hs * 0.17, tip[1] - hs * 0.11, tip[0], tip[1]);
     g.closePath(); g.fill();
     const lx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
     rrect(g, lx, ly, be - lx, lh, lh / 2);
