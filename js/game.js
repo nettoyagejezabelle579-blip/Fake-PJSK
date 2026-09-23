@@ -16,9 +16,11 @@ const Game = (() => {
     pressed: new Array(LANES).fill(0),
   };
 
+  // Chart JSON: { offset, bpm, notes: [{ t, lane, type }] }; note time = offset + t (seconds).
   function loadChart(chart) {
+    const off = chart.offset || 0;
     state.notes = chart.notes
-      .map((n) => ({ time: n.time, lane: n.lane, state: 0, judge: null }))
+      .map((n) => ({ time: off + n.t, lane: n.lane, type: n.type || 'tap', state: 0, judge: null }))
       .sort((a, b) => a.time - b.time);
     state.score = state.combo = state.maxCombo = 0;
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
@@ -26,19 +28,8 @@ const Game = (() => {
     state.effects = [];
   }
 
-  // Generated test chart matching AudioEngine.makeMetronome(bpm, beats, offset).
-  function makeMetronomeChart(bpm, beats, offset) {
-    const spb = 60 / bpm;
-    const walk = [0, 1, 2, 3, 3, 2, 1, 0];
-    const notes = [];
-    for (let b = 8; b < beats - 4; b++) {
-      const time = offset + b * spb;
-      const bar = Math.floor(b / 4);
-      notes.push({ time, lane: walk[b % 8] });
-      if (bar >= 6 && bar < 10 && b % 4 === 0) notes.push({ time, lane: 3 - walk[b % 8] });
-      if (bar >= 10) notes.push({ time: time + spb / 2, lane: walk[(b + 2) % 8] });
-    }
-    return { bpm, offset, notes };
+  async function fetchChart(id, diff) {
+    return (await fetch(`songs/${id}/${diff}.json`)).json();
   }
 
   function record(n, judge, t, dt = 0) {
@@ -96,10 +87,12 @@ const Game = (() => {
 
   async function start() {
     await AudioEngine.init();
-    const bpm = 120, beats = 72, offset = 0.5;
-    const buffer = AudioEngine.makeMetronome(bpm, beats, offset);
-    loadChart(makeMetronomeChart(bpm, beats, offset));
-    state.duration = buffer.duration;
+    const q = new URLSearchParams(location.search);
+    const id = q.get('song') || 'demo', diff = q.get('diff') || 'normal';
+    const [{ buffer }, chart] = await Promise.all([AudioEngine.loadSong(id), fetchChart(id, diff)]);
+    loadChart(chart);
+    const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
+    state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
     AudioEngine.play(buffer);
     state.running = true;

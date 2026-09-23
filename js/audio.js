@@ -14,6 +14,12 @@ const AudioEngine = (() => {
     return ctx.decodeAudioData(await res.arrayBuffer());
   }
 
+  // Song folder songs/<id>/: meta.json + audio file named by meta.audio.
+  async function loadSong(id) {
+    const meta = await (await fetch(`songs/${id}/meta.json`)).json();
+    return { meta, buffer: await load(`songs/${id}/${meta.audio}`) };
+  }
+
   // Click track: accented click every `beatsPerBar` beats, song time 0 = start of buffer.
   function makeMetronome(bpm, beats, offset, beatsPerBar = 4) {
     const sr = ctx.sampleRate;
@@ -68,5 +74,5 @@ const AudioEngine = (() => {
   // Song position (seconds) that was audible when an input event happened.
   function songTimeAt(eventTimeStamp) { return outputTimeAt(eventTimeStamp) - startAt; }
 
-  return { init, load, makeMetronome, play, stop, songTime, songTimeAt };
+  return { init, load, loadSong, makeMetronome, play, stop, songTime, songTimeAt };
 })();
