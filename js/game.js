@@ -15,7 +15,6 @@ const Game = (() => {
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, judge, time }
-    log: [],         // per judged note: { time, tap, dt, judge, at }
     pressed: new Array(LANES).fill(0),
   };
 
@@ -36,7 +35,6 @@ const Game = (() => {
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
     state.lastJudge = null;
     state.effects = [];
-    state.log = [];
   }
 
   async function fetchChart(id, diff) {
@@ -48,7 +46,6 @@ const Game = (() => {
     n.state = judge === 'miss' ? 2 : 1;
     n.judge = judge;
     state.counts[judge]++;
-    state.log.push({ time: n.time, tap: dt == null ? null : t, dt, judge, at: new Date().toISOString() });
     state.lastJudge = { judge, time: t, dt };
     if (judge === 'miss') {
       state.combo = 0;
@@ -149,21 +146,6 @@ const Game = (() => {
   btn.after(songsBtn);
   songsBtn.addEventListener('click', () => { location.search = ''; });
 
-  function exportCsv() {
-    const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const ms = (v) => v == null ? '' : (v * 1000).toFixed(1);
-    const rows = [['song', 'difficulty', 'note_time', 'tap_time', 'offset_ms', 'judgment', 'timestamp']];
-    for (const e of state.log) {
-      rows.push([q(songTitle), diff, e.time.toFixed(3), e.tap == null ? '' : e.tap.toFixed(3), ms(e.dt), e.judge, e.at]);
-    }
-    const url = URL.createObjectURL(new Blob([rows.map((r) => r.join(',')).join('\n') + '\n'], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${songId}_${diff}_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
   // Song over: stop judging, save best/clear, then the renderer plays the ending (clear banner → rank)
   // and frame() hands off to the result screen.
   let result = null;
@@ -183,7 +165,7 @@ const Game = (() => {
     result = {
       id: songId, meta: songMeta || { title: songTitle }, diff, score: state.score, best, ratio, rank,
       counts: { ...state.counts }, maxCombo: state.maxCombo,
-      onRetry: start, onNext: () => { location.search = ''; }, onExport: exportCsv,
+      onRetry: start, onNext: () => { location.search = ''; },
     };
     state.ending = { at: t };
   }

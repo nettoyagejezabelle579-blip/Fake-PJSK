@@ -365,7 +365,7 @@ const Menu = (() => {
     const actions = el('div', 'res-actions');
     actions.append(btn('res-btn res-retry', 'Retry', null, () => { hideResult(); d.onRetry(); }),
       btn('res-btn res-next', 'Next', null, d.onNext));
-    root.append(top, body, art, actions, btn('res-export', 'Export CSV', null, d.onExport));
+    root.append(top, body, art, actions);
     document.body.append(root);
     resultEl = root;
   }
