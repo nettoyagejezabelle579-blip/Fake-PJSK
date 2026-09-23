@@ -12,8 +12,8 @@ const Render = (() => {
     flick: { top: '#fff0f7', mid: '#ffc2dd', side: '#ff6fa6', edge: '#ff8fbd', cap: '#ff3d86' },
   };
   // Score rank thresholds (score / max score); shared with the results screen.
-  const RANKS = [['S', 0.9], ['A', 0.8], ['B', 0.7], ['C', 0.5], ['D', 0]];
-  const RANK_COLORS = { S: '#ffd84a', A: '#ff7ad9', B: '#6fb6ff', C: '#b98bff', D: '#5ef2c6' };
+  const RANKS = [['S', 0.9], ['A', 0.75], ['B', 0.6], ['C', 0.45], ['D', 0]];
+  const RANK_COLORS = { S: '#ffd84a', A: '#ff7ad9', B: '#6fb6ff', C: '#b98bff', D: '#7ef2c8' };
   const FONT = '"M PLUS Rounded 1c", "Nunito", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif';
 
   // Effect tuning
@@ -464,61 +464,78 @@ const Render = (() => {
 
   // Top HUD: score rank tile, score bar with C/B/A/S pins, 8-digit score + gain; life bar (pause button is DOM).
   function drawHud(t, s) {
-    const u = Math.max(46, Math.min(H * 0.13, W * 0.07));
+    // Laid out in reference units (rank tile = 273 wide), scaled by k.
+    const k = Math.max(40, H * 0.1) / 273;
     const x0 = Math.max(SA.l + 8, W * 0.05), y0 = Math.max(0, SA.t);
+    const X = (px) => x0 + (px - 105) * k, Y = (py) => y0 + py * k;
     const max = s.notes.length * 1000 || 1, ratio = Math.min(1, s.score / max);
     const rank = RANKS.find(([, m]) => ratio >= m)[0];
+    const HUD_BG = '#5d5b8a', ink = 'rgba(40,36,80,0.85)';
+    const outlined = (txt, x, y, lw, fill) => {
+      g.lineJoin = 'round'; g.lineWidth = lw; g.strokeStyle = ink;
+      g.shadowColor = 'rgba(255,255,255,0.35)'; g.shadowBlur = 6 * k * 3;
+      g.strokeText(txt, x, y);
+      g.shadowBlur = 0;
+      g.fillStyle = fill; g.fillText(txt, x, y);
+    };
 
-    // rank tile
-    const rw = u * 0.95, rh = u * 1.15;
-    g.fillStyle = 'rgba(50,38,92,0.88)'; g.fillRect(x0, y0, rw, rh);
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `900 ${u * 0.95}px ${FONT}`;
-    g.fillStyle = RANK_COLORS[rank];
-    g.fillText(rank, x0 + rw / 2, y0 + rh * 0.42);
-    g.font = `800 ${Math.max(6, u * 0.11)}px ${FONT}`;
-    g.fillText('SCORERANK', x0 + rw / 2, y0 + rh * 0.88);
+    // capsule with folder tab, attached to the right of the rank tile
+    rrect(g, X(420), Y(55), 310 * k, 80 * k, 20 * k);
+    g.fillStyle = HUD_BG; g.fill();
+    rrect(g, X(300), Y(100), 1560 * k, 150 * k, 75 * k);
+    g.fill();
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.font = `900 ${75 * k}px ${FONT}`;
+    outlined('SCORE', X(445), Y(125), 8 * k, '#fff');
 
-    // score bar
-    const x1 = x0 + rw + u * 0.14, bw = Math.min(W * 0.24, u * 4.2), by = y0 + u * 0.34, bh = u * 0.2;
-    capsule(x1 - u * 0.1, by - u * 0.1, bw + u * 0.2, bh + u * 0.2);
-    pill(x1, y0 + u * 0.04, u * 0.95, u * 0.28, 'SCORE', u);
-    rrect(g, x1, by, bw, bh, bh / 2);
-    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.28)'; g.lineWidth = 1.5; g.stroke();
+    // bar: dark track, mint fill, C/B/A/S pins
+    const bx = X(420), bw = 1405 * k, by = Y(148), bh = 60 * k;
+    rrect(g, bx, by, bw, bh, bh / 2);
+    g.fillStyle = '#33334e'; g.fill();
     if (ratio > 0) {
-      rrect(g, x1 + 2, by + 2, Math.max(bh - 4, (bw - 4) * ratio), bh - 4, (bh - 4) / 2);
-      const sg = g.createLinearGradient(x1, 0, x1 + bw, 0);
-      sg.addColorStop(0, '#46e0b8'); sg.addColorStop(1, '#8dffb0');
-      g.fillStyle = sg; g.fill();
+      g.save();
+      rrect(g, bx, by, bw, bh, bh / 2); g.clip();
+      const sg = g.createLinearGradient(bx, 0, bx + bw * ratio, 0);
+      sg.addColorStop(0, '#6cf0bf'); sg.addColorStop(1, '#94f7e2');
+      g.fillStyle = sg; g.fillRect(bx, by, bw * ratio, bh);
+      g.restore();
     }
-    g.font = `900 ${u * 0.17}px ${FONT}`;
+    g.textAlign = 'center';
     for (const [r, m] of RANKS) {
       if (!m) continue;
-      const mx = x1 + bw * m;
-      g.strokeStyle = '#fff'; g.lineWidth = 2;
-      g.beginPath(); g.moveTo(mx, y0 + u * 0.12); g.lineTo(mx, by + bh); g.stroke();
+      const mx = bx + bw * m;
       g.fillStyle = '#fff';
-      g.beginPath(); g.arc(mx, y0 + u * 0.1, u * 0.1, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#3a2a6a'; g.fillText(r, mx, y0 + u * 0.105);
+      g.fillRect(mx - 4 * k, Y(95), 8 * k, 113 * k);
+      g.beginPath(); g.moveTo(mx - 28 * k, Y(95)); g.lineTo(mx + 28 * k, Y(95)); g.lineTo(mx, Y(138)); g.closePath();
+      g.lineWidth = 5 * k; g.strokeStyle = ink; g.stroke(); g.fill();
+      g.font = `900 ${80 * k}px ${FONT}`;
+      outlined(r, mx, Y(85), 10 * k, '#fff');
     }
 
-    // score digits: leading zeros dimmed
+    // rank tile (drawn over the capsule's left end)
+    g.fillStyle = '#4c4a74'; g.fillRect(X(105), Y(0), 273 * k, 378 * k);
+    g.fillStyle = RANK_COLORS[rank];
+    g.font = `900 ${300 * k}px ${FONT}`;
+    g.fillText(rank, X(241), Y(252));
+    g.font = `900 ${44 * k}px ${FONT}`;
+    g.fillText('SCORERANK', X(241), Y(342), 230 * k);
+
+    // score digits (leading zeros dimmed) + last gain
     const str = String(s.score).padStart(8, '0'), lead = str.match(/^0*(?=.)/)[0];
-    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-    g.font = `800 ${u * 0.44}px ${FONT}`;
-    const sy = y0 + u * 1.02;
-    g.lineWidth = u * 0.06; g.strokeStyle = 'rgba(30,15,60,0.6)'; g.lineJoin = 'round';
-    g.strokeText(str, x1, sy);
-    g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText(lead, x1, sy);
-    g.fillStyle = '#fff'; g.fillText(str.slice(lead.length), x1 + g.measureText(lead).width, sy);
+    g.textAlign = 'left';
+    g.font = `900 ${150 * k}px ${FONT}`;
+    const sx = X(440), sy = Y(338);
+    outlined(lead, sx, sy, 12 * k, '#c9c7e2');
+    const lw0 = g.measureText(lead).width;
+    outlined(str.slice(lead.length), sx + lw0, sy, 12 * k, '#fff');
+    const sw = g.measureText(str).width;
     if (s.lastGain && t - s.lastGain.time < 0.6) {
       g.globalAlpha = 1 - (t - s.lastGain.time) / 0.6;
-      g.font = `800 ${u * 0.26}px ${FONT}`;
-      g.font = `800 ${u * 0.44}px ${FONT}`;
-      const gx = x1 + g.measureText(str).width + u * 0.12;
-      g.font = `800 ${u * 0.26}px ${FONT}`;
-      g.fillText(`+${s.lastGain.v}`, gx, sy);
+      g.font = `900 ${62 * k}px ${FONT}`;
+      outlined('+', sx + sw + 18 * k, sy - 4 * k, 8 * k, '#bdbcd2');
+      const pw = g.measureText('+').width;
+      g.font = `900 ${88 * k}px ${FONT}`;
+      outlined(String(s.lastGain.v), sx + sw + 22 * k + pw, sy, 8 * k, '#bdbcd2');
       g.globalAlpha = 1;
     }
 
@@ -543,30 +560,15 @@ const Render = (() => {
     g.arc(hx + hs * 0.25, hy - hs * 0.13, hs * 0.27, 0, Math.PI * 2);
     g.fill();
     g.beginPath(); g.moveTo(hx - hs * 0.515, hy - hs * 0.06); g.lineTo(hx + hs * 0.515, hy - hs * 0.06); g.lineTo(hx, hy + hs * 0.46); g.closePath(); g.fill();
-    const bx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
-    rrect(g, bx, ly, be - bx, lh, lh / 2);
+    const lx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
+    rrect(g, lx, ly, be - lx, lh, lh / 2);
     g.fillStyle = 'rgba(40,36,80,0.55)'; g.fill();
-    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, (be - bx) * lk), lh, lh / 2); g.fillStyle = lc; g.fill(); }
+    if (lk > 0) { rrect(g, lx, ly, Math.max(lh, (be - lx) * lk), lh, lh / 2); g.fillStyle = lc; g.fill(); }
     g.textAlign = 'right'; g.textBaseline = 'alphabetic';
     g.font = `900 ${ch * 0.62}px ${FONT}`;
     g.lineWidth = ch * 0.12; g.strokeStyle = 'rgba(40,36,80,0.9)'; g.lineJoin = 'round';
     g.strokeText(String(life), be, cy + ch * 0.2);
     g.fillStyle = '#fff'; g.fillText(String(life), be, cy + ch * 0.2);
-  }
-
-  // Translucent rounded frame that holds a bar (score / life).
-  function capsule(x, y, w, h) {
-    rrect(g, x, y, w, h, h / 2);
-    g.fillStyle = 'rgba(46,34,92,0.6)'; g.fill();
-    g.strokeStyle = 'rgba(205,190,255,0.5)'; g.lineWidth = 2; g.stroke();
-  }
-
-  function pill(x, y, w, h, label, u) {
-    rrect(g, x, y, w, h, h / 2);
-    g.fillStyle = 'rgba(60,46,110,0.9)'; g.fill();
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `800 ${u * 0.22}px ${FONT}`;
-    g.fillStyle = '#fff'; g.fillText(label, x + w / 2, y + h / 2 + 1);
   }
 
   function drawClear(age, ap, G, big) {
