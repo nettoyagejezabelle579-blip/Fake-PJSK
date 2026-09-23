@@ -393,21 +393,23 @@ const Render = (() => {
       g.save();
       g.translate(G.cx, H * 0.62);
       g.scale(sc, sc);
-      g.font = `900 ${big}px ${FONT}`;
+      const jb = Math.max(16, H * 0.05);
+      g.font = `900 ${jb}px ${FONT}`;
       const label = j.toUpperCase(), tw = g.measureText(label).width / 2;
-      const tg = g.createLinearGradient(0, -big / 2, 0, big / 2);
+      const tg = g.createLinearGradient(0, -jb / 2, 0, jb / 2);
       const [c0, c1] = JUDGE_GRAD[j];
       tg.addColorStop(0, c0); tg.addColorStop(1, c1);
-      g.lineWidth = big * 0.12; g.strokeStyle = 'rgba(30,15,60,0.75)'; g.lineJoin = 'round';
+      g.lineWidth = jb * 0.12; g.strokeStyle = 'rgba(30,15,60,0.75)'; g.lineJoin = 'round';
       g.strokeText(label, 0, 0);
       g.fillStyle = tg; g.fillText(label, 0, 0);
       if (j === 'perfect' && !reduced) { g.globalAlpha = 0.35; g.fillStyle = '#fff'; g.fillRect(-tw, -2, tw * 2, 3); g.globalAlpha = 1; }
       g.restore();
       if (j === 'great' || j === 'good') {
         const early = s.lastJudge.dt < 0;
-        g.font = `800 ${big * 0.42}px ${FONT}`;
+        const jb = Math.max(16, H * 0.05);
+        g.font = `800 ${jb * 0.5}px ${FONT}`;
         g.fillStyle = early ? '#7fd8ff' : '#ff9a6b';
-        g.fillText(early ? 'EARLY' : 'LATE', G.cx, H * 0.62 + big * 0.75);
+        g.fillText(early ? 'EARLY' : 'LATE', G.cx, H * 0.62 + jb * 0.85);
       }
     }
     if (s.combo >= 2) {
@@ -456,6 +458,7 @@ const Render = (() => {
 
     // score bar
     const x1 = x0 + rw + u * 0.14, bw = Math.min(W * 0.24, u * 4.2), by = y0 + u * 0.34, bh = u * 0.2;
+    capsule(x1 - u * 0.1, by - u * 0.1, bw + u * 0.2, bh + u * 0.2);
     pill(x1, y0 + u * 0.04, u * 0.95, u * 0.28, 'SCORE', u);
     rrect(g, x1, by, bw, bh, bh / 2);
     g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
@@ -500,6 +503,7 @@ const Render = (() => {
     const pb = Math.min(60, Math.max(40, H * 0.09));
     const lr = W - Math.max(SA.r + 8, W * 0.05) - pb - u * 0.2, lw = Math.min(W * 0.16, u * 3), lx = lr - lw;
     const life = Math.max(0, s.life ?? 1000), lk = life / 1000;
+    capsule(lx - u * 0.42, y0 + u * 0.36, lw + u * 0.54, u * 0.38);
     pill(lx + u * 0.05, y0 + u * 0.1, u * 0.85, u * 0.3, 'LIFE', u);
     g.textAlign = 'right'; g.textBaseline = 'middle';
     g.font = `800 ${u * 0.3}px ${FONT}`;
@@ -516,6 +520,13 @@ const Render = (() => {
     g.bezierCurveTo(hx - hr * 1.4, hy - hr * 0.1, hx - hr * 0.6, hy - hr * 1.2, hx, hy - hr * 0.4);
     g.bezierCurveTo(hx + hr * 0.6, hy - hr * 1.2, hx + hr * 1.4, hy - hr * 0.1, hx, hy + hr * 0.9);
     g.fill();
+  }
+
+  // Translucent rounded frame that holds a bar (score / life).
+  function capsule(x, y, w, h) {
+    rrect(g, x, y, w, h, h / 2);
+    g.fillStyle = 'rgba(46,34,92,0.6)'; g.fill();
+    g.strokeStyle = 'rgba(205,190,255,0.5)'; g.lineWidth = 2; g.stroke();
   }
 
   function pill(x, y, w, h, label, u) {
