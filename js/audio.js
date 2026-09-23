@@ -44,13 +44,15 @@ const AudioEngine = (() => {
     return buf;
   }
 
-  function play(buffer, lead = 0.6) {
+  // from: song position (seconds) to start playback at.
+  function play(buffer, lead = 0.6, from = 0) {
     stop();
     source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(ctx.destination);
-    startAt = ctx.currentTime + lead;
-    source.start(startAt);
+    const at = ctx.currentTime + lead;
+    startAt = at - from;
+    source.start(at, Math.max(0, from));
   }
 
   function stop() {

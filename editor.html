@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Chart Editor</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; background: #11111c; align-items: center; }
+  #bar label { font-size: 16px; display: flex; align-items: center; gap: 6px; }
+  #bar select, #bar input, #bar button { font: inherit; font-size: 18px; font-weight: 700; min-height: 48px;
+    border-radius: 12px; border: 3px solid #555; background: #222; color: #fff; padding: 0 12px; }
+  #bar input[type="number"] { width: 90px; }
+  #bar button { cursor: pointer; }
+  #bar button[aria-pressed="true"] { background: #ff3c6e; border-color: #ff3c6e; }
+  #bar button:disabled { opacity: 0.4; }
+  #info { font-size: 18px; font-variant-numeric: tabular-nums; margin-left: auto; }
+  #timeline { flex: 1; min-height: 0; display: block; width: 100%; touch-action: none; }
+  #pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px; background: #11111c; }
+  .pad { min-height: 80px; font-size: 28px; font-weight: 800; border: 3px solid #3ce6d2; border-radius: 14px;
+    background: #1a2a30; color: #fff; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .pad.down { background: #3ce6d2; color: #000; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <select id="song" aria-label="Song"></select>
+  <select id="diff" aria-label="Difficulty">
+    <option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option>
+  </select>
+  <button id="load" type="button">Load</button>
+  <button id="play" type="button" disabled>Play</button>
+  <button id="rec" type="button" aria-pressed="false" disabled>Rec</button>
+  <label>Snap <select id="snap"><option value="1">1/1</option><option value="0.5">1/2</option><option value="0.25" selected>1/4</option></select></label>
+  <label>BPM <input id="bpm" type="number" min="1" step="0.01" value="120"></label>
+  <label>Offset <input id="offset" type="number" step="0.001" value="0"></label>
+  <button id="del" type="button">Delete</button>
+  <button id="export" type="button">Export JSON</button>
+  <span id="info">—</span>
+</div>
+<canvas id="timeline"></canvas>
+<div id="pads">
+  <button class="pad" type="button" data-lane="0">D</button>
+  <button class="pad" type="button" data-lane="1">F</button>
+  <button class="pad" type="button" data-lane="2">J</button>
+  <button class="pad" type="button" data-lane="3">K</button>
+</div>
+<script src="js/audio.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>
