@@ -522,32 +522,36 @@ const Render = (() => {
       g.globalAlpha = 1;
     }
 
-    // life bar (right), leaving room for the DOM pause button
+    // life (right): solid capsule tucked under the DOM pause button, folder-tab label, heart + thick bar, value on the top edge
     const pb = Math.min(60, Math.max(40, H * 0.09));
-    const lr = W - Math.max(SA.r + 8, W * 0.05) - pb - u * 0.2, lw = Math.min(W * 0.16, u * 3), lx = lr - lw;
+    const pl = W - Math.max(SA.r + 8, W * 0.05) - pb, pcx = pl + pb / 2, pcy = Math.max(8, SA.t) + pb / 2;
+    const ch = pb * 0.7, cy = pcy - ch / 2, cx0 = pcx - ch * 6.6;
     const life = Math.max(0, s.life ?? 1000), lk = life / 1000;
-    // capsule with the heart inside on the left, bar to its right; LIFE tab and value sit on its top edge
-    const cy = y0 + u * 0.36, ch = u * 0.34, cx0 = lx - u * 0.57;
-    capsule(cx0, cy, lr - cx0, ch);
-    // bar starts under the heart so the two read as one piece
-    const hx = cx0 + u * 0.27, hy = cy + ch / 2 - u * 0.015, hr = u * 0.15;
-    const bx = hx, bwid = lr - u * 0.12 - bx, lh = u * 0.13, ly = cy + (ch - lh) / 2;
-    const lc = lk < 0.3 ? '#ff6b6b' : '#7cf0a0';
-    rrect(g, bx, ly, bwid, lh, lh / 2);
-    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
-    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, bwid * lk), lh, lh / 2); g.fillStyle = lc; g.fill(); }
+    const LIFE_BG = '#5d5b8a', lc = lk < 0.3 ? '#ff7b7b' : '#a3f0a0';
+    const tabH = ch * 0.4, tabX = cx0 + ch * 0.9, tabW = ch * 1.5;
+    rrect(g, tabX, cy - tabH, tabW, tabH + ch * 0.5, tabH * 0.45);
+    g.fillStyle = LIFE_BG; g.fill();
+    rrect(g, cx0, cy, pcx - cx0, ch, ch / 2);
+    g.fill();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${ch * 0.42}px ${FONT}`;
+    g.fillStyle = '#fff'; g.fillText('LIFE', tabX + tabW / 2, cy - tabH * 0.35);
+    const hs = ch * 0.58, hx = cx0 + ch * 0.55, hy = cy + ch * 0.5;
     g.fillStyle = lc;
     g.beginPath();
-    g.moveTo(hx, hy + hr * 0.9);
-    g.bezierCurveTo(hx - hr * 1.4, hy - hr * 0.1, hx - hr * 0.6, hy - hr * 1.2, hx, hy - hr * 0.4);
-    g.bezierCurveTo(hx + hr * 0.6, hy - hr * 1.2, hx + hr * 1.4, hy - hr * 0.1, hx, hy + hr * 0.9);
+    g.arc(hx - hs * 0.25, hy - hs * 0.13, hs * 0.27, 0, Math.PI * 2);
+    g.arc(hx + hs * 0.25, hy - hs * 0.13, hs * 0.27, 0, Math.PI * 2);
     g.fill();
-    pill(cx0 + u * 0.25, y0 + u * 0.06, u * 0.85, u * 0.28, 'LIFE', u);
+    g.beginPath(); g.moveTo(hx - hs * 0.515, hy - hs * 0.06); g.lineTo(hx + hs * 0.515, hy - hs * 0.06); g.lineTo(hx, hy + hs * 0.46); g.closePath(); g.fill();
+    const bx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
+    rrect(g, bx, ly, be - bx, lh, lh / 2);
+    g.fillStyle = 'rgba(40,36,80,0.55)'; g.fill();
+    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, (be - bx) * lk), lh, lh / 2); g.fillStyle = lc; g.fill(); }
     g.textAlign = 'right'; g.textBaseline = 'alphabetic';
-    g.font = `800 ${u * 0.25}px ${FONT}`;
-    g.lineWidth = u * 0.05; g.strokeStyle = 'rgba(30,15,60,0.6)'; g.lineJoin = 'round';
-    g.strokeText(String(life), lr - u * 0.12, cy + u * 0.06);
-    g.fillStyle = '#fff'; g.fillText(String(life), lr - u * 0.12, cy + u * 0.06);
+    g.font = `900 ${ch * 0.62}px ${FONT}`;
+    g.lineWidth = ch * 0.12; g.strokeStyle = 'rgba(40,36,80,0.9)'; g.lineJoin = 'round';
+    g.strokeText(String(life), be, cy + ch * 0.2);
+    g.fillStyle = '#fff'; g.fillText(String(life), be, cy + ch * 0.2);
   }
 
   // Translucent rounded frame that holds a bar (score / life).

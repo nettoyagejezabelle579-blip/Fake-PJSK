@@ -164,8 +164,8 @@ body:has(> .menu) #fs-btn { display: none; }
 #pause-btn { display: none; position: fixed; z-index: 20; top: max(8px, var(--sat)); right: max(calc(var(--sar) + 8px), 5vw);
   width: clamp(40px, 9vh, 60px); height: clamp(40px, 9vh, 60px); border: 0; border-radius: 50%; background: #fff; cursor: pointer;
   box-shadow: 0 3px 10px rgba(20, 10, 50, 0.5); }
-#pause-btn::before, #pause-btn::after { content: ""; position: absolute; top: 30%; width: 13%; height: 40%; border-radius: 2px; background: #3d3470; }
-#pause-btn::before { left: 34%; } #pause-btn::after { right: 34%; }
+#pause-btn::before, #pause-btn::after { content: ""; position: absolute; top: 28%; width: 15%; height: 44%; border-radius: 1px; background: #46456e; }
+#pause-btn::before { left: 31%; } #pause-btn::after { right: 31%; }
 body.playing #pause-btn { display: block; }
 body.playing #fs-btn { display: none; }
 #rotate { display: none; position: fixed; inset: 0; z-index: 100; flex-direction: column; align-items: center; justify-content: center;
