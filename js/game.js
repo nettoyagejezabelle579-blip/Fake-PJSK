@@ -13,6 +13,7 @@ const Game = (() => {
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, judge, time }
+    log: [],         // per judged note: { time, tap, dt, judge, at }
     pressed: new Array(LANES).fill(0),
   };
 
@@ -31,16 +32,19 @@ const Game = (() => {
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
     state.lastJudge = null;
     state.effects = [];
+    state.log = [];
   }
 
   async function fetchChart(id, diff) {
     return (await fetch(`songs/${id}/${diff}.json`)).json();
   }
 
-  function record(n, judge, t, dt = 0) {
+  // dt null = no input offset (miss, or hold tail auto-completed).
+  function record(n, judge, t, dt = null) {
     n.state = judge === 'miss' ? 2 : 1;
     n.judge = judge;
     state.counts[judge]++;
+    state.log.push({ time: n.time, tap: dt == null ? null : t, dt, judge, at: new Date().toISOString() });
     state.lastJudge = { judge, time: t, dt };
     if (judge === 'miss') {
       state.combo = 0;
@@ -99,6 +103,7 @@ const Game = (() => {
   const DIFFS = ['easy', 'normal', 'hard'];
   const q = new URLSearchParams(location.search);
   const songId = q.get('song') || 'demo';
+  let songTitle = songId;
   let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
 
   function selectDiff(d) {
@@ -109,7 +114,7 @@ const Game = (() => {
   async function showSong() {
     const meta = await AudioEngine.loadMeta(songId);
     const levels = meta.difficulties || {};
-    title.textContent = meta.title;
+    title.textContent = songTitle = meta.title;
     text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K (+Space = flick) · or tap, swipe up to flick`;
     if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; }
     const avail = DIFFS.filter((d) => d in levels);
@@ -125,14 +130,46 @@ const Game = (() => {
     selectDiff(avail.includes(diff) ? diff : avail[0] || diff);
   }
 
+  // Rank by score / max possible score.
+  const RANKS = [['S', 0.9], ['A', 0.8], ['B', 0.7], ['C', 0]];
+
+  const exportBtn = document.createElement('button');
+  exportBtn.type = 'button';
+  exportBtn.id = 'export-btn';
+  exportBtn.textContent = 'EXPORT CSV';
+  exportBtn.hidden = true;
+  btn.after(exportBtn);
+
+  function exportCsv() {
+    const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const ms = (v) => v == null ? '' : (v * 1000).toFixed(1);
+    const rows = [['song', 'difficulty', 'note_time', 'tap_time', 'offset_ms', 'judgment', 'timestamp']];
+    for (const e of state.log) {
+      rows.push([q(songTitle), diff, e.time.toFixed(3), e.tap == null ? '' : e.tap.toFixed(3), ms(e.dt), e.judge, e.at]);
+    }
+    const url = URL.createObjectURL(new Blob([rows.map((r) => r.join(',')).join('\n') + '\n'], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${songId}_${diff}_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  exportBtn.addEventListener('click', exportCsv);
+
   function finish() {
     state.running = false;
     AudioEngine.stop();
     const c = state.counts;
-    title.textContent = 'Results';
+    const ratio = state.notes.length ? state.score / (state.notes.length * POINTS.perfect) : 0;
+    const rank = RANKS.find(([, min]) => ratio >= min)[0];
+    const offs = state.log.filter((e) => e.dt != null).map((e) => e.dt);
+    const avg = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length * 1000 : 0;
+    title.textContent = `Rank ${rank}`;
     text.textContent = `Score ${state.score}\nMax combo ${state.maxCombo}\n` +
-      `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}`;
+      `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}\n` +
+      `Avg offset ${avg >= 0 ? '+' : ''}${avg.toFixed(1)} ms ${avg < 0 ? '(early)' : avg > 0 ? '(late)' : ''}`;
     btn.textContent = 'RETRY';
+    exportBtn.hidden = false;
     overlay.classList.remove('hidden');
   }
 
@@ -143,6 +180,7 @@ const Game = (() => {
     const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
+    exportBtn.hidden = true;
     AudioEngine.play(buffer);
     state.running = true;
   }
