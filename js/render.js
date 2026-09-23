@@ -555,18 +555,16 @@ const Render = (() => {
     g.font = `900 ${ch * 0.42}px ${FONT}`;
     g.fillStyle = '#fff'; g.fillText('LIFE', tabX + tabW / 2, cy - tabH * 0.35);
     const hs = ch * 0.58, hx = cx0 + ch * 0.55, hy = cy + ch * 0.5;
+    // classic parametric heart: x = 16 sin³t, y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t
+    const hk = hs * 1.05 / 32;
     g.fillStyle = lc;
     g.beginPath();
-    g.arc(hx - hs * 0.25, hy - hs * 0.13, hs * 0.27, 0, Math.PI * 2);
-    g.arc(hx + hs * 0.25, hy - hs * 0.13, hs * 0.27, 0, Math.PI * 2);
-    g.fill();
-    // lower half: sides bulge outward and meet in a softly rounded tip
-    g.beginPath();
-    g.moveTo(hx - hs * 0.515, hy - hs * 0.12);
-    g.bezierCurveTo(hx - hs * 0.5, hy + hs * 0.03, hx - hs * 0.16, hy + hs * 0.2, hx, hy + hs * 0.37);
-    g.bezierCurveTo(hx + hs * 0.16, hy + hs * 0.2, hx + hs * 0.5, hy + hs * 0.03, hx + hs * 0.515, hy - hs * 0.12);
+    for (let i = 0; i <= 64; i++) {
+      const a = (i / 64) * Math.PI * 2;
+      const px = 16 * Math.sin(a) ** 3, py = 13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a);
+      g[i ? 'lineTo' : 'moveTo'](hx + px * hk, hy - (py + 2.6) * hk);
+    }
     g.closePath(); g.fill();
-    g.lineJoin = 'round'; g.lineWidth = hs * 0.04; g.strokeStyle = lc; g.stroke();
     const lx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
     rrect(g, lx, ly, be - lx, lh, lh / 2);
     g.fillStyle = 'rgba(40,36,80,0.55)'; g.fill();
