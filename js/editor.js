@@ -1,8 +1,9 @@
 // Chart editor: live recording (D F J K / pads), timeline drag/delete, beat snap, JSON export.
-// Chart JSON: { offset, bpm, notes: [{ t, lane, type }] }; note time = offset + t (seconds).
+// Chart JSON: { offset, bpm, notes: [{ t, lane, type, end? }] }; type tap|hold|flick, hold has end; note time = offset + t (seconds).
 (() => {
   const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
   const LANE_COLORS = ['#3ce6d2', '#ff6ec7', '#ff6ec7', '#3ce6d2'];
+  const TYPE_COLORS = { hold: '#5cff9a', flick: '#ff4d5e' };
   const PLAY_Y = 0.85;   // playhead position (fraction of canvas height)
   const NOTE_H = 16;
   const $ = (id) => document.getElementById(id);
@@ -10,12 +11,13 @@
   const g = cv.getContext('2d');
 
   let buffer = null;
-  let notes = [];          // { t, lane } (t relative to offset)
+  let notes = [];          // { t, lane, type, end? } (t, end relative to offset)
   let selected = null;
   let playing = false;
   let viewTime = 0;        // song time at the playhead while stopped
   let pps = 200;           // pixels per second
   let drag = null;
+  const recHold = [];      // lane → hold note being recorded
 
   const bpm = () => Math.max(1, +$('bpm').value || 120);
   const offset = () => +$('offset').value || 0;
@@ -32,7 +34,8 @@
     t = Math.max(0, snap(t));
     const dup = notes.find((n) => n.lane === lane && Math.abs(n.t - t) < 1e-4);
     if (dup) return dup;
-    const n = { t, lane };
+    const n = { t, lane, type: $('type').value };
+    if (n.type === 'hold') n.end = t + step();
     notes.push(n);
     return n;
   }
@@ -54,6 +57,17 @@
     return best;
   }
 
+  function hitTail(x, y) {
+    const lane = xToLane(x);
+    return notes.find((n) => n.type === 'hold' && n.lane === lane && Math.abs(timeToY(offset() + n.end) - y) < NOTE_H) || null;
+  }
+
+  function setType(n, type) {
+    n.type = type;
+    if (type === 'hold') n.end = n.end > n.t ? n.end : n.t + step();
+    else delete n.end;
+  }
+
   // ---- Song / chart loading ----
   async function loadIndex() {
     const idx = await (await fetch('songs/index.json')).json();
@@ -71,7 +85,7 @@
     try { chart = await (await fetch(`songs/${id}/${diff}.json`)).json(); } catch (e) { /* new chart */ }
     $('bpm').value = (chart && chart.bpm) || song.meta.bpm || 120;
     $('offset').value = (chart && chart.offset) || 0;
-    notes = chart ? chart.notes.map((n) => ({ t: n.t, lane: n.lane })) : [];
+    notes = chart ? chart.notes.map((n) => ({ t: n.t, lane: n.lane, type: n.type || 'tap', ...(n.type === 'hold' ? { end: n.end } : {}) })) : [];
     selected = null;
     viewTime = 0;
     $('play').disabled = $('rec').disabled = false;
@@ -100,10 +114,14 @@
     pad.classList.add('down');
     if (playing && $('rec').getAttribute('aria-pressed') === 'true') {
       selected = addNote(AudioEngine.songTimeAt(stamp) - offset(), lane);
+      if (selected.type === 'hold') recHold[lane] = selected;
     }
   }
-  function release(lane) {
+  function release(lane, stamp) {
     document.querySelector(`.pad[data-lane="${lane}"]`).classList.remove('down');
+    const n = recHold[lane];
+    recHold[lane] = null;
+    if (n && playing) n.end = Math.max(n.t + step(), snap(AudioEngine.songTimeAt(stamp) - offset()));
   }
 
   window.addEventListener('keydown', (e) => {
@@ -112,12 +130,12 @@
     else if (e.code === 'Space') { document.activeElement.blur(); playing ? stop() : play(); e.preventDefault(); }
     else if (e.code === 'Delete' || e.code === 'Backspace') { deleteSelected(); e.preventDefault(); }
   });
-  window.addEventListener('keyup', (e) => { if (e.code in KEYS) release(KEYS[e.code]); });
+  window.addEventListener('keyup', (e) => { if (e.code in KEYS) release(KEYS[e.code], e.timeStamp); });
 
   for (const pad of document.querySelectorAll('.pad')) {
     const lane = +pad.dataset.lane;
     pad.addEventListener('pointerdown', (e) => { e.preventDefault(); press(lane, e.timeStamp); });
-    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pad.addEventListener(ev, () => release(lane));
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pad.addEventListener(ev, (e) => release(lane, e.timeStamp));
   }
 
   // ---- Timeline: tap empty = add, drag note = move, drag empty = scroll, right-click = delete ----
@@ -126,18 +144,23 @@
   cv.addEventListener('pointerdown', (e) => {
     if (!buffer || e.button === 2) return;
     const p = pos(e);
-    const n = hitNote(p.x, p.y);
+    const tail = hitTail(p.x, p.y);
+    const n = tail || hitNote(p.x, p.y);
     cv.setPointerCapture(e.pointerId);
     selected = n;
-    drag = { note: n, y0: p.y, view0: viewTime, moved: false };
+    drag = { note: n, tail: !!tail, y0: p.y, view0: viewTime, moved: false };
   });
 
   cv.addEventListener('pointermove', (e) => {
     if (!drag) return;
     const p = pos(e);
     if (Math.abs(p.y - drag.y0) > 6) drag.moved = true;
-    if (drag.note) {
+    if (drag.tail) {
+      drag.note.end = Math.max(drag.note.t + step(), snap(yToTime(p.y) - offset()));
+    } else if (drag.note) {
+      const len = drag.note.type === 'hold' ? drag.note.end - drag.note.t : 0;
       drag.note.t = Math.max(0, snap(yToTime(p.y) - offset()));
+      if (len) drag.note.end = drag.note.t + len;
       drag.note.lane = xToLane(p.x);
     } else if (!playing) {
       viewTime = Math.max(0, drag.view0 + (p.y - drag.y0) / pps);
@@ -172,7 +195,7 @@
       offset: offset(),
       bpm: bpm(),
       notes: notes.slice().sort((a, b) => a.t - b.t || a.lane - b.lane)
-        .map((n) => ({ t: +n.t.toFixed(3), lane: n.lane, type: 'tap' })),
+        .map((n) => ({ t: +n.t.toFixed(3), lane: n.lane, type: n.type || 'tap', ...(n.type === 'hold' ? { end: +n.end.toFixed(3) } : {}) })),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -215,9 +238,21 @@
     // Notes
     for (const n of notes) {
       const y = timeToY(off + n.t);
+      if (n.type === 'hold') {
+        const ye = timeToY(off + n.end);
+        g.fillStyle = 'rgba(92,255,154,0.35)';
+        g.fillRect(n.lane * lw + 18, ye, lw - 36, y - ye);
+        g.fillStyle = TYPE_COLORS.hold;
+        g.fillRect(n.lane * lw + 12, ye - 3, lw - 24, 6);
+      }
       if (y < -NOTE_H || y > H + NOTE_H) continue;
-      g.fillStyle = LANE_COLORS[n.lane];
+      g.fillStyle = TYPE_COLORS[n.type] || LANE_COLORS[n.lane];
       g.fillRect(n.lane * lw + 6, y - NOTE_H / 2, lw - 12, NOTE_H);
+      if (n.type === 'flick') {
+        const cx = (n.lane + 0.5) * lw;
+        g.beginPath(); g.moveTo(cx - 14, y - NOTE_H / 2); g.lineTo(cx, y - NOTE_H / 2 - 16); g.lineTo(cx + 14, y - NOTE_H / 2);
+        g.fill();
+      }
       if (n === selected) {
         g.strokeStyle = '#ffe23c'; g.lineWidth = 4;
         g.strokeRect(n.lane * lw + 4, y - NOTE_H / 2 - 2, lw - 8, NOTE_H + 4);
@@ -243,7 +278,8 @@
   });
   $('del').addEventListener('click', deleteSelected);
   $('export').addEventListener('click', exportJSON);
-  for (const id of ['song', 'diff', 'snap']) $(id).addEventListener('change', (e) => e.target.blur());
+  $('type').addEventListener('change', (e) => { if (selected) setType(selected, e.target.value); });
+  for (const id of ['song', 'diff', 'snap', 'type']) $(id).addEventListener('change', (e) => e.target.blur());
 
   window.addEventListener('resize', resize);
   resize();
