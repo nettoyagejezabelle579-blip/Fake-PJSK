@@ -19,7 +19,14 @@ const Settings = (() => {
 
   function clamp(k, v) {
     const [lo, hi] = LIMITS[k];
-    return Math.min(hi, Math.max(lo, +v || 0));
+    const c = Math.min(hi, Math.max(lo, +v || 0));
+    return k === 'noteSpeed' ? Math.round(c * 10) / 10 : c;
+  }
+
+  // Note speed 1.0–12.0 → seconds a note is on screen: 6 s at 1.0, 0.5 s at 12.0, exponential between.
+  function noteTime(speed = values.noteSpeed) {
+    const [lo, hi] = LIMITS.noteSpeed;
+    return 6 * Math.pow(0.5 / 6, (clamp('noteSpeed', speed) - lo) / (hi - lo));
   }
 
   function load() {
@@ -87,7 +94,7 @@ const Settings = (() => {
     el.innerHTML = `
       <h2 style="margin:0;font-size:32px">Settings</h2>
       <label>Note speed: <span data-v="noteSpeed"></span>
-        <input type="range" data-k="noteSpeed" min="1" max="12" step="0.5" style="width:100%;height:48px"></label>
+        <input type="range" data-k="noteSpeed" min="1" max="12" step="0.1" style="width:100%;height:48px"></label>
       <label>Lane brightness: <span data-v="laneBrightness"></span>
         <input type="range" data-k="laneBrightness" min="0.1" max="1" step="0.05" style="width:100%;height:48px"></label>
       <label>Offset (ms): <span data-v="offset"></span>
@@ -151,6 +158,6 @@ const Settings = (() => {
   }
 
   load();
-  return { DEFAULTS, load, save, get, set, reset, open,
+  return { DEFAULTS, load, save, get, set, reset, open, noteTime,
     startCalibration, calibrationTap, calibrationDone, finishCalibration };
 })();

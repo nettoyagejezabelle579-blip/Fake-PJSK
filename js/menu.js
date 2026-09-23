@@ -1,9 +1,8 @@
 // Song select: list from songs/index.json, cover/title/artist, difficulty + level, 10 s preview, speed.
-// Shown when the page has no ?song= param; Play navigates to ?song=&diff=&speed= for game.js.
+// Shown when the page has no ?song= param; Play navigates to ?song=&diff= for game.js.
 const Menu = (() => {
   const DIFFS = ['easy', 'normal', 'hard'];
   const PREVIEW_LEN = 10; // seconds
-  const SPEED_MIN = 0.5, SPEED_MAX = 3, SPEED_STEP = 0.25;
 
   const store = {
     get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
@@ -13,7 +12,6 @@ const Menu = (() => {
   let songs = [];     // [{ id, meta }]
   let sel = null;     // selected song entry
   let diff = store.get('pjsk.diff', 'normal');
-  let speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, +store.get('pjsk.speed', 1) || 1));
   let preview = null, previewTimer = 0;
   let root, list, detail;
 
@@ -62,19 +60,25 @@ const Menu = (() => {
     }
 
     const sp = el('div', 'menu-speed');
-    const val = el('output', null, `${speed.toFixed(2)}x`);
+    const val = el('output', null, Settings.get('noteSpeed').toFixed(1));
     const mk = (label, delta) => {
       const b = el('button', 'menu-step', label);
       b.type = 'button';
-      b.setAttribute('aria-label', delta < 0 ? 'Slower' : 'Faster');
-      b.addEventListener('click', () => {
-        speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed + delta));
-        store.set('pjsk.speed', speed);
-        val.textContent = `${speed.toFixed(2)}x`;
-      });
+      b.setAttribute('aria-label', (delta < 0 ? 'Slower ' : 'Faster ') + Math.abs(delta));
+      const step = () => {
+        Settings.set('noteSpeed', Settings.get('noteSpeed') + delta);
+        val.textContent = Settings.get('noteSpeed').toFixed(1);
+      };
+      let timer = 0;
+      const stop = () => { clearTimeout(timer); timer = 0; };
+      const repeat = ms => { timer = setTimeout(() => { step(); repeat(Math.max(40, ms * 0.8)); }, ms); };
+      b.addEventListener('pointerdown', e => { e.preventDefault(); stop(); step(); repeat(400); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => b.addEventListener(t, stop));
+      b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); step(); } });
+      b.addEventListener('contextmenu', e => e.preventDefault());
       return b;
     };
-    sp.append(el('span', null, 'Speed'), mk('−', -SPEED_STEP), val, mk('+', SPEED_STEP));
+    sp.append(el('span', null, 'Speed'), mk('−1', -1), mk('−', -0.1), val, mk('+', 0.1), mk('+1', 1));
 
     const prev = el('button', 'menu-preview', '▶ Preview');
     prev.type = 'button';
@@ -85,7 +89,7 @@ const Menu = (() => {
     play.type = 'button';
     play.addEventListener('click', () => {
       stopPreview();
-      location.search = new URLSearchParams({ song: s.id, diff, speed }).toString();
+      location.search = new URLSearchParams({ song: s.id, diff }).toString();
     });
 
     detail.replaceChildren(cover, el('h1', null, s.meta.title), el('p', 'menu-artist', s.meta.artist),
@@ -140,7 +144,7 @@ const Menu = (() => {
 
   if (!new URLSearchParams(location.search).get('song')) show();
 
-  return { show, stopPreview, get speed() { return speed; } };
+  return { show, stopPreview, get speed() { return Settings.get('noteSpeed'); } };
 })();
 
 // Fullscreen + landscape lock; both best-effort (unsupported on some browsers, e.g. iOS).

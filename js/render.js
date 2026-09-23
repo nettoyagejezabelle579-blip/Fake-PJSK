@@ -1,7 +1,6 @@
 // Canvas drawing: perspective 4-lane highway, falling notes, judgment line, effects.
 const Render = (() => {
   const LANES = 4;
-  const LOOKAHEAD = 1.3 / (+new URLSearchParams(location.search).get('speed') || 1); // seconds visible; ?speed= from menu
   const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
   const NOTE_DEPTH = 0.012;
   const LANE_COLORS = ['#33e0ff', '#ff5fa8', '#ff5fa8', '#33e0ff'];
@@ -161,6 +160,7 @@ const Render = (() => {
     g.shadowBlur = 0;
 
     // Notes (far to near so near ones draw on top)
+    const LOOKAHEAD = Settings.noteTime(); // seconds visible, from saved note speed
     for (let i = s.notes.length - 1; i >= 0; i--) {
       const n = s.notes[i];
       if (n.type === 'tail') continue;
