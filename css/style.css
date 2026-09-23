@@ -32,9 +32,16 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
   font-family: "M PLUS Rounded 1c", "Nunito", "Varela Round", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
   background: #c3b6e2; isolation: isolate; }
 .menu::before, .menu::after { content: ""; position: absolute; z-index: -1; pointer-events: none; }
-.menu::before { inset: -30px; background: url("city.svg") center bottom / cover; filter: blur(7px) saturate(1.1); }
-.menu::after { inset: 0; background: radial-gradient(rgba(255, 255, 255, 0.18) 1.2px, transparent 1.6px) 0 0 / 7px 7px,
-    linear-gradient(180deg, rgba(150, 140, 220, 0.2), rgba(230, 170, 200, 0.12)); }
+.menu::before { inset: -40px; background: url("city.svg") center 70% / cover; filter: blur(9px) saturate(1.15) brightness(1.03); }
+.menu::after { inset: 0;
+  background:
+    radial-gradient(circle at 57% 42%, transparent 44px, rgba(255, 255, 255, 0.28) 46px, transparent 49px),
+    radial-gradient(circle at 93% 34%, transparent 30px, rgba(255, 255, 255, 0.22) 32px, transparent 35px),
+    radial-gradient(circle at 20% 70%, rgba(255, 255, 255, 0.22), transparent 7%),
+    radial-gradient(circle at 48% 82%, rgba(255, 240, 200, 0.25), transparent 6%),
+    radial-gradient(circle at 80% 76%, rgba(255, 255, 255, 0.2), transparent 8%),
+    radial-gradient(rgba(255, 255, 255, 0.16) 1.1px, transparent 1.5px) 0 0 / 6px 6px,
+    linear-gradient(180deg, rgba(140, 130, 220, 0.22), rgba(170, 150, 220, 0.12) 50%, rgba(230, 160, 200, 0.14)); }
 :where(.menu) :is(button, select, input) { font: inherit; color: inherit; }
 .menu button { cursor: pointer; }
 .menu svg { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
