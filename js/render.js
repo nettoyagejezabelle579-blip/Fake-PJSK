@@ -563,10 +563,10 @@ const Render = (() => {
     // lower half: sides bulge outward and meet in a softly rounded tip
     g.beginPath();
     g.moveTo(hx - hs * 0.515, hy - hs * 0.12);
-    g.bezierCurveTo(hx - hs * 0.52, hy + hs * 0.12, hx - hs * 0.2, hy + hs * 0.3, hx, hy + hs * 0.44);
-    g.bezierCurveTo(hx + hs * 0.2, hy + hs * 0.3, hx + hs * 0.52, hy + hs * 0.12, hx + hs * 0.515, hy - hs * 0.12);
+    g.bezierCurveTo(hx - hs * 0.5, hy + hs * 0.03, hx - hs * 0.16, hy + hs * 0.2, hx, hy + hs * 0.37);
+    g.bezierCurveTo(hx + hs * 0.16, hy + hs * 0.2, hx + hs * 0.5, hy + hs * 0.03, hx + hs * 0.515, hy - hs * 0.12);
     g.closePath(); g.fill();
-    g.lineJoin = 'round'; g.lineWidth = hs * 0.06; g.strokeStyle = lc; g.stroke();
+    g.lineJoin = 'round'; g.lineWidth = hs * 0.04; g.strokeStyle = lc; g.stroke();
     const lx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
     rrect(g, lx, ly, be - lx, lh, lh / 2);
     g.fillStyle = 'rgba(40,36,80,0.55)'; g.fill();
