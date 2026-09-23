@@ -100,7 +100,7 @@ const Game = (() => {
   const cover = document.getElementById('overlay-cover');
   const diffSelect = document.getElementById('diff-select');
 
-  const DIFFS = ['easy', 'normal', 'hard'];
+  const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const q = new URLSearchParams(location.search);
   const songId = q.get('song') || 'demo';
   let songTitle = songId;
@@ -170,6 +170,11 @@ const Game = (() => {
     const offs = state.log.filter((e) => e.dt != null).map((e) => e.dt);
     const avg = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length * 1000 : 0;
     title.textContent = `Rank ${rank}`;
+    try { // read by the song select (high score pill, clear diamonds)
+      const k = `pjsk.best.${songId}.${diff}`;
+      if (state.score > (+localStorage.getItem(k) || 0)) localStorage.setItem(k, state.score);
+      localStorage.setItem(`pjsk.clear.${songId}.${diff}`, '1');
+    } catch (e) { /* storage unavailable */ }
     text.textContent = `Score ${state.score}\nMax combo ${state.maxCombo}\n` +
       `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}\n` +
       `Avg offset ${avg >= 0 ? '+' : ''}${avg.toFixed(1)} ms ${avg < 0 ? '(early)' : avg > 0 ? '(late)' : ''}`;
