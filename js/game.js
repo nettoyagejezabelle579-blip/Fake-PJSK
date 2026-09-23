@@ -96,7 +96,9 @@ const Game = (() => {
       } else if (t - n.time > WINDOWS.good) record(n, 'miss', t);
     }
     state.effects = state.effects.filter((f) => t - f.time < 0.5);
-    if (t > state.duration + 0.5) finish();
+    // clear ~1 s after the last note is judged (or when the audio runs out)
+    const judged = state.notes.length && state.notes.every((n) => n.state !== 0);
+    if ((judged && t > state.lastTime + 1) || t > state.duration + 0.5) finish(t);
   }
 
   const overlay = document.getElementById('overlay');
@@ -109,7 +111,7 @@ const Game = (() => {
   const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const q = new URLSearchParams(location.search);
   const songId = q.get('song') || 'demo';
-  let songTitle = songId;
+  let songTitle = songId, songMeta = null;
   let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
 
   function selectDiff(d) {
@@ -118,7 +120,7 @@ const Game = (() => {
   }
 
   async function showSong() {
-    const meta = await AudioEngine.loadMeta(songId);
+    const meta = songMeta = await AudioEngine.loadMeta(songId);
     const levels = meta.difficulties || {};
     title.textContent = songTitle = meta.title;
     text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K (+Space = flick) · or tap, swipe up to flick`;
@@ -139,16 +141,12 @@ const Game = (() => {
   // Rank by score / max possible score.
   const RANKS = Render.RANKS;
 
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.id = 'export-btn';
-  exportBtn.textContent = 'EXPORT CSV';
-  exportBtn.hidden = true;
-  btn.after(exportBtn);
-  const songsBtn = exportBtn.cloneNode();
+  const songsBtn = document.createElement('button');
+  songsBtn.type = 'button';
   songsBtn.id = 'songs-btn';
   songsBtn.textContent = 'SONG SELECT';
-  exportBtn.after(songsBtn);
+  songsBtn.hidden = true;
+  btn.after(songsBtn);
   songsBtn.addEventListener('click', () => { location.search = ''; });
 
   function exportCsv() {
@@ -165,39 +163,48 @@ const Game = (() => {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  exportBtn.addEventListener('click', exportCsv);
 
-  function finish() {
+  // Song over: stop judging, save best/clear, then the renderer plays the ending (clear banner → rank)
+  // and frame() hands off to the result screen.
+  let result = null;
+  function finish(t) {
     state.running = false;
     document.body.classList.remove('playing');
-    AudioEngine.stop();
-    const c = state.counts;
+    document.body.classList.add('ending');
     const ratio = state.notes.length ? state.score / (state.notes.length * POINTS.perfect) : 0;
     const rank = RANKS.find(([, min]) => ratio >= min)[0];
-    const offs = state.log.filter((e) => e.dt != null).map((e) => e.dt);
-    const avg = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length * 1000 : 0;
-    title.textContent = `Rank ${rank}`;
+    let best = 0;
     try { // read by the song select (high score pill, clear diamonds)
       const k = `pjsk.best.${songId}.${diff}`;
-      if (state.score > (+localStorage.getItem(k) || 0)) localStorage.setItem(k, state.score);
+      best = +localStorage.getItem(k) || 0;
+      if (state.score > best) localStorage.setItem(k, state.score);
       localStorage.setItem(`pjsk.clear.${songId}.${diff}`, '1');
     } catch (e) { /* storage unavailable */ }
-    text.textContent = `Score ${state.score}\nMax combo ${state.maxCombo}\n` +
-      `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}\n` +
-      `Avg offset ${avg >= 0 ? '+' : ''}${avg.toFixed(1)} ms ${avg < 0 ? '(early)' : avg > 0 ? '(late)' : ''}`;
-    btn.textContent = 'RETRY';
-    exportBtn.hidden = songsBtn.hidden = false;
-    overlay.classList.remove('hidden');
+    result = {
+      id: songId, meta: songMeta || { title: songTitle }, diff, score: state.score, best, ratio, rank,
+      counts: { ...state.counts }, maxCombo: state.maxCombo,
+      onRetry: start, onNext: () => { location.search = ''; }, onExport: exportCsv,
+    };
+    state.ending = { at: t };
+  }
+
+  function showResult() {
+    state.ending = null;
+    document.body.classList.remove('ending');
+    AudioEngine.stop();
+    Menu.showResult(result);
   }
 
   async function start() {
     await AudioEngine.init();
     const [{ buffer }, chart] = await Promise.all([AudioEngine.loadSong(songId), fetchChart(songId, diff)]);
     loadChart(chart);
-    const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
+    Menu.hideResult();
+    state.ending = null;
+    const last = state.lastTime = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
-    exportBtn.hidden = songsBtn.hidden = true;
+    songsBtn.hidden = true;
     AudioEngine.play(buffer);
     state.running = true;
     paused = false;
@@ -209,6 +216,10 @@ const Game = (() => {
       const t = AudioEngine.songTime();
       update(t);
       Render.draw(t, state);
+    } else if (state.ending) {
+      const t = AudioEngine.songTime();
+      Render.draw(t, state);
+      if (t - state.ending.at > Render.END_A + Render.END_B) showResult();
     }
     requestAnimationFrame(frame);
   }

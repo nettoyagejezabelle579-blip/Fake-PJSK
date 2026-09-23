@@ -13,7 +13,7 @@ const Render = (() => {
   };
   // Score rank thresholds (score / max score); shared with the results screen.
   const RANKS = [['S', 0.9], ['A', 0.75], ['B', 0.6], ['C', 0.45], ['D', 0]];
-  const RANK_COLORS = { S: '#ffd84a', A: '#ff7ad9', B: '#6fb6ff', C: '#b98bff', D: '#7ef2c8' };
+  const RANK_COLORS = { S: '#ffd84a', A: '#ff8fd8', B: '#8fb8ff', C: '#86f5f0', D: '#7ef2c8' };
   const FONT = '"M PLUS Rounded 1c", "Nunito", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif';
 
   // Effect tuning
@@ -25,7 +25,8 @@ const Render = (() => {
   let reduced = !!(rmq && rmq.matches);
   if (rmq) (rmq.addEventListener ? rmq.addEventListener('change', (e) => { reduced = e.matches; }) : rmq.addListener((e) => { reduced = e.matches; }));
   const wasPressed = [0, 0, 0, 0], releaseAt = [-1e9, -1e9, -1e9, -1e9];
-  let lastCombo = 0, comboAt = -1e9, lastNotes = null, doneAt = null;
+  let lastCombo = 0, comboAt = -1e9, lastNotes = null;
+  const END_A = 2.1, END_B = 2.5; // ending: clear banner, then rank screen (seconds)
   const rnd = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
 
   function init(canvas) {
@@ -250,7 +251,8 @@ const Render = (() => {
 
   function draw(t, s) {
     const G = geo();
-    if (s.notes !== lastNotes) { lastNotes = s.notes; doneAt = null; lastCombo = s.combo; comboAt = -1e9; }
+    if (s.notes !== lastNotes) { lastNotes = s.notes; lastCombo = s.combo; comboAt = -1e9; }
+    if (s.ending && t - s.ending.at >= END_A) { drawEndingRank(t - s.ending.at - END_A, s); return; }
     if (s.combo > lastCombo) comboAt = t;
     lastCombo = s.combo;
     drawStage(t);
@@ -455,12 +457,8 @@ const Render = (() => {
       g.restore();
     }
 
-    // Full Combo / All Perfect
-    const c = s.counts;
-    if (doneAt === null && s.notes.length && c.perfect + c.great + c.good + c.miss >= s.notes.length) doneAt = t;
-    if (doneAt !== null && !c.miss) drawClear(t - doneAt, !c.great && !c.good, G, big);
-
     drawHud(t, s);
+    if (s.ending) drawClearBanner(t - s.ending.at, s);
   }
 
   // Top HUD: score rank tile, score bar with C/B/A/S pins, 8-digit score + gain; life bar (pause button is DOM).
@@ -578,43 +576,115 @@ const Render = (() => {
     g.fillStyle = '#fff'; g.fillText(String(life), be, cy + ch * 0.2);
   }
 
-  function drawClear(age, ap, G, big) {
-    if (age < 0) return;
-    const k = reduced ? 1 : Math.min(1, age / FX.bannerIn);
-    const sc = reduced ? 1 : 1 + 0.6 * (1 - k) ** 3;
-    const y = H * 0.5, bh = big * 1.9;
-    g.globalAlpha = k;
-    g.fillStyle = 'rgba(0,0,0,0.55)';
-    g.fillRect(0, y - bh / 2, W, bh);
-    if (!reduced) { // expanding rays + confetti burst
-      g.globalCompositeOperation = 'lighter';
-      const u = Math.min(W, H);
-      for (let i = 0; i < 24; i++) {
-        const a = rnd(i, 7) * Math.PI * 2, v = u * (0.2 + rnd(i, 8) * 0.5) * Math.min(1, age / 1.2);
-        g.fillStyle = ap ? (i % 3 ? '#ffe45c' : '#ff7ad9') : (i % 2 ? '#33e0ff' : '#ffffff');
-        g.globalAlpha = Math.max(0, 1 - age / 1.5);
-        g.fillRect(G.cx + Math.cos(a) * v - 4, y + Math.sin(a) * v - 4 + age * age * 40, 8, 8);
-      }
-      g.globalCompositeOperation = 'source-over';
-      g.globalAlpha = k;
-    }
+  const clearLabel = (c) => (!c.miss && !c.good && !c.great ? 'ALL PERFECT!' : !c.miss ? 'FULL COMBO!' : 'LIVE CLEAR!');
+
+  function labelFill(label, x, w) {
+    if (label === 'LIVE CLEAR!') return '#fff6e8';
+    const lg = g.createLinearGradient(x - w, 0, x + w, 0);
+    const stops = label === 'ALL PERFECT!' ? ['#ffc4ec', '#fff3b0', '#c8fff0', '#b8d8ff', '#e8c8ff'] : ['#8ff4ff', '#ffffff', '#ffc9ef'];
+    stops.forEach((c, i) => lg.addColorStop(i / (stops.length - 1), c));
+    return lg;
+  }
+
+  // Ending stage 1: dim the stage, pop the clear label in, twinkling sparkles.
+  function drawClearBanner(age, s) {
+    const k = Math.min(1, age / 0.3);
+    g.fillStyle = `rgba(12,8,35,${0.5 * k})`; g.fillRect(0, 0, W, H);
+    const label = clearLabel(s.counts), size = Math.min(H * 0.19, W * 0.085);
+    const sc = reduced ? 1 : 1 + 0.35 * (1 - k) ** 3;
     g.save();
-    g.translate(G.cx, y);
+    g.translate(W / 2, H * 0.5);
     g.scale(sc, sc);
-    g.font = `900 ${big * 1.15}px system-ui, sans-serif`;
+    g.globalAlpha = k;
+    g.font = `900 ${size}px ${FONT}`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    const tw = g.measureText('ALL PERFECT').width / 2;
-    const tg = g.createLinearGradient(-tw, 0, tw, 0);
-    if (ap) { tg.addColorStop(0, '#ffe45c'); tg.addColorStop(0.5, '#ffffff'); tg.addColorStop(1, '#ff7ad9'); }
-    else { tg.addColorStop(0, '#33e0ff'); tg.addColorStop(0.5, '#ffffff'); tg.addColorStop(1, '#5cff9a'); }
-    g.lineWidth = 6; g.strokeStyle = '#000000';
-    const label = ap ? 'ALL PERFECT' : 'FULL COMBO';
-    g.strokeText(label, 0, 0);
-    g.fillStyle = tg;
+    const tw = g.measureText(label).width / 2;
+    g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = size * 0.15;
+    g.fillStyle = labelFill(label, 0, tw);
     g.fillText(label, 0, 0);
     g.restore();
+    if (!reduced) sparkles(age, 0.9);
     g.globalAlpha = 1;
   }
 
-  return { init, draw, laneAtX, setCover, JUDGE_COLORS, RANKS };
+  function sparkles(age, a) {
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 22; i++) {
+      const tw = 0.5 + 0.5 * Math.sin(age * 5 + i * 1.7);
+      g.globalAlpha = a * tw;
+      star(rnd(i, 41) * W, rnd(i, 42) * H, (2 + rnd(i, 43) * 5) * (0.6 + tw * 0.6));
+    }
+    g.globalAlpha = 1;
+  }
+
+  // Ending stage 2: indigo screen, clear label with outlined echoes, score bar filling, rank tile.
+  function drawEndingRank(age, s) {
+    const lg = g.createLinearGradient(0, 0, 0, H);
+    lg.addColorStop(0, '#2c2a56'); lg.addColorStop(0.6, '#34305f'); lg.addColorStop(1, '#43306a');
+    g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    g.globalAlpha = 0.22; g.drawImage(bg, 0, 0, W, H); g.globalAlpha = 1;
+    const rg = g.createRadialGradient(W * 0.85, H, 0, W * 0.85, H, W * 0.5);
+    rg.addColorStop(0, 'rgba(170,80,200,0.35)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+    const fade = Math.min(1, age / 0.3);
+
+    const label = clearLabel(s.counts), size = Math.min(H * 0.19, W * 0.07);
+    const cx = W * 0.435, cy = H * 0.47;
+    g.font = `900 ${size}px ${FONT}`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const tw = g.measureText(label).width / 2;
+    g.globalAlpha = 0.3 * fade; g.strokeStyle = '#ffffff'; g.lineWidth = 1.5;
+    for (const dy of [-0.15, 0.15]) g.strokeText(label, cx, cy + H * dy);
+    g.globalAlpha = fade;
+    g.fillStyle = label === 'LIVE CLEAR!' ? '#ffffff' : labelFill(label, cx, tw);
+    g.fillText(label, cx, cy);
+
+    // score bar
+    const max = s.notes.length * 1000 || 1, ratio = Math.min(1, s.score / max);
+    const fillK = reduced ? 1 : Math.min(1, Math.max(0, (age - 0.3) / 1.1));
+    const ease = 1 - (1 - fillK) ** 3;
+    const bx = W * 0.155, bw = W * 0.575, by = H * 0.64, bh = H * 0.036;
+    rrect(g, bx, by, bw, bh, bh / 2);
+    g.fillStyle = '#2a2848'; g.fill();
+    if (ratio * ease > 0) {
+      g.save(); rrect(g, bx, by, bw, bh, bh / 2); g.clip();
+      const fg = g.createLinearGradient(bx, 0, bx + bw * ratio, 0);
+      fg.addColorStop(0, '#8ff5cf'); fg.addColorStop(1, '#7ff4f0');
+      g.fillStyle = fg; g.fillRect(bx, by, bw * ratio * ease, bh);
+      g.restore();
+    }
+    g.fillStyle = '#fff';
+    g.font = `800 ${H * 0.045}px ${FONT}`;
+    for (const [r, m] of RANKS) {
+      if (!m) continue;
+      const mx = bx + bw * m, tp = by - H * 0.03;
+      g.fillRect(mx - 1.5, tp, 3, by + bh - tp);
+      g.beginPath(); g.moveTo(mx - H * 0.016, tp); g.lineTo(mx + H * 0.016, tp); g.lineTo(mx, tp + H * 0.025); g.closePath(); g.fill();
+      g.fillText(r, mx, tp - H * 0.035);
+    }
+
+    // rank tile
+    const rank = RANKS.find(([, m]) => ratio >= m)[0];
+    const tk = reduced ? 1 : Math.min(1, Math.max(0, (age - 1.3) / 0.35));
+    if (tk > 0) {
+      const tx = W * 0.752, ty = H * 0.33, tw2 = W * 0.095, th = H * 0.345;
+      g.globalAlpha = tk;
+      g.fillStyle = '#2e2c50'; g.fillRect(tx, ty + (1 - tk) * H * 0.03, tw2, th);
+      const col = RANK_COLORS[rank], ls = th * 0.72, lx = tx + tw2 / 2, ly = ty + th * 0.43;
+      g.font = `900 ${ls}px ${FONT}`;
+      g.strokeStyle = col; g.lineWidth = 1.2; g.globalAlpha = tk * 0.6;
+      g.strokeText(rank, lx - tw2 * 0.08, ly - th * 0.06);
+      g.globalAlpha = tk;
+      const ps = reduced ? 1 : 1 + 0.3 * (1 - tk) ** 2;
+      g.save(); g.translate(lx, ly); g.scale(ps, ps);
+      g.fillStyle = col; g.fillText(rank, 0, 0);
+      g.restore();
+      g.font = `900 ${th * 0.085}px ${FONT}`;
+      g.fillText('SCORERANK', lx, ty + th * 0.9, tw2 * 0.9);
+    }
+    g.globalAlpha = 1;
+    if (!reduced) sparkles(age + END_A, 0.5);
+  }
+
+  return { init, draw, laneAtX, setCover, JUDGE_COLORS, RANKS, END_A, END_B };
 })();

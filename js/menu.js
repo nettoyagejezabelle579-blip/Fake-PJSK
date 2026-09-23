@@ -297,9 +297,82 @@ const Menu = (() => {
     renderList();
   }
 
+  // Result screen (after a play): song card with score bar + rank, score / high score, judgement table, combo.
+  let resultEl = null;
+  const digits = (n, len) => {
+    const str = String(n).padStart(len, '0'), lead = str.match(/^0*(?=.)/)[0];
+    const w = el('span', 'res-num');
+    w.append(el('span', 'dim', lead), el('span', null, str.slice(lead.length)));
+    return w;
+  };
+
+  function hideResult() { if (resultEl) { resultEl.remove(); resultEl = null; } }
+
+  function showResult(d) {
+    hideResult();
+    const m = d.meta, root = el('div', 'result');
+    root.dataset.diff = d.diff;
+    root.append(el('div', 'res-mark', 'RESULT'));
+
+    const top = el('div', 'res-top');
+    const cover = el('img', 'res-cover');
+    cover.alt = '';
+    if (m.cover) cover.src = `songs/${d.id}/${m.cover}`;
+    const info = el('div', 'res-info');
+    const badges = el('div', 'res-badges');
+    const lv = el('span', 'res-lv', 'Song Lv. ');
+    lv.append(el('b', null, (m.difficulties || {})[d.diff] ?? '–'));
+    badges.append(el('span', 'res-diff', d.diff.toUpperCase()), lv);
+    info.append(el('div', 'res-title', m.title), badges);
+    const bar = el('div', 'res-bar');
+    const fill = el('i', 'res-fill');
+    fill.style.width = `${(d.ratio * 100).toFixed(1)}%`;
+    bar.append(fill);
+    for (const [r, v] of Render.RANKS) {
+      if (!v) continue;
+      const pin = el('span', 'res-pin', r);
+      pin.style.left = `${v * 100}%`;
+      bar.append(pin);
+    }
+    const tile = el('div', 'res-rank');
+    tile.dataset.rank = d.rank;
+    tile.append(el('b', null, d.rank), el('small', null, 'SCORERANK'));
+    top.append(cover, info, bar, tile);
+
+    const body = el('div', 'res-body');
+    const scoreRow = el('div', 'res-score');
+    if (d.score > d.best) scoreRow.append(el('span', 'res-new', '✦ NEW RECORD! ✦'));
+    scoreRow.append(el('span', 'res-label', 'Score'), digits(d.score, 8));
+    const bestRow = el('div', 'res-best');
+    bestRow.append(el('span', 'res-label', 'High Score'), digits(d.best, 8)); // previous best, as before this play
+    const judges = el('div', 'res-judges');
+    const table = el('div', 'res-table');
+    for (const j of ['perfect', 'great', 'good', 'miss']) {
+      const row = el('div', 'res-row');
+      row.dataset.j = j;
+      row.append(el('span', 'res-j', j.toUpperCase()), digits(d.counts[j], 4));
+      table.append(row);
+    }
+    const combo = el('div', 'res-combo');
+    combo.append(el('span', 'res-label', 'COMBO'), digits(d.maxCombo, 4));
+    judges.append(table, combo);
+    body.append(scoreRow, bestRow, judges);
+
+    const art = el('img', 'res-art');
+    art.alt = '';
+    if (m.cover) art.src = cover.src;
+
+    const actions = el('div', 'res-actions');
+    actions.append(btn('res-btn res-retry', 'Retry', null, () => { hideResult(); d.onRetry(); }),
+      btn('res-btn res-next', 'Next', null, d.onNext));
+    root.append(top, body, art, actions, btn('res-export', 'Export CSV', null, d.onExport));
+    document.body.append(root);
+    resultEl = root;
+  }
+
   if (!new URLSearchParams(location.search).get('song')) show();
 
-  return { show, stopPreview, get speed() { return Settings.get('noteSpeed'); } };
+  return { show, showResult, hideResult, stopPreview, get speed() { return Settings.get('noteSpeed'); } };
 })();
 
 // Fullscreen + landscape lock; both best-effort (unsupported on some browsers, e.g. iOS).
