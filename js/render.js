@@ -529,20 +529,22 @@ const Render = (() => {
     // capsule with the heart inside on the left, bar to its right; LIFE tab and value sit on its top edge
     const cy = y0 + u * 0.36, ch = u * 0.34, cx0 = lx - u * 0.45;
     capsule(cx0, cy, lr - cx0, ch);
+    // bar starts under the heart so the two read as one piece
     const hx = cx0 + u * 0.22, hy = cy + ch / 2 + u * 0.02, hr = u * 0.15;
-    g.fillStyle = '#7cf0a0';
+    const bx = hx, bwid = lr - u * 0.12 - bx, lh = u * 0.13, ly = cy + (ch - lh) / 2;
+    const lc = lk < 0.3 ? '#ff6b6b' : '#7cf0a0';
+    rrect(g, bx, ly, bwid, lh, lh / 2);
+    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
+    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, bwid * lk), lh, lh / 2); g.fillStyle = lc; g.fill(); }
+    g.fillStyle = lc;
     g.beginPath();
     g.moveTo(hx, hy + hr * 0.9);
     g.bezierCurveTo(hx - hr * 1.4, hy - hr * 0.1, hx - hr * 0.6, hy - hr * 1.2, hx, hy - hr * 0.4);
     g.bezierCurveTo(hx + hr * 0.6, hy - hr * 1.2, hx + hr * 1.4, hy - hr * 0.1, hx, hy + hr * 0.9);
     g.fill();
-    const bx = hx + u * 0.26, bwid = lr - u * 0.12 - bx, lh = u * 0.13, ly = cy + (ch - lh) / 2;
-    rrect(g, bx, ly, bwid, lh, lh / 2);
-    g.fillStyle = 'rgba(20,14,44,0.85)'; g.fill();
-    if (lk > 0) { rrect(g, bx, ly, Math.max(lh, bwid * lk), lh, lh / 2); g.fillStyle = lk < 0.3 ? '#ff6b6b' : '#7cf0a0'; g.fill(); }
     pill(cx0 + u * 0.25, y0 + u * 0.06, u * 0.85, u * 0.28, 'LIFE', u);
     g.textAlign = 'right'; g.textBaseline = 'alphabetic';
-    g.font = `800 ${u * 0.32}px ${FONT}`;
+    g.font = `800 ${u * 0.25}px ${FONT}`;
     g.lineWidth = u * 0.05; g.strokeStyle = 'rgba(30,15,60,0.6)'; g.lineJoin = 'round';
     g.strokeText(String(life), lr - u * 0.12, cy + u * 0.06);
     g.fillStyle = '#fff'; g.fillText(String(life), lr - u * 0.12, cy + u * 0.06);
