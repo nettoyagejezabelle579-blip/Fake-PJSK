@@ -79,6 +79,7 @@ const Menu = (() => {
     const prev = el('button', 'menu-preview', '▶ Preview');
     prev.type = 'button';
     prev.addEventListener('click', () => playPreview(s));
+    sp.append(prev); // one row keeps Play on screen in landscape
 
     const play = el('button', 'menu-play', 'PLAY');
     play.type = 'button';
@@ -88,7 +89,7 @@ const Menu = (() => {
     });
 
     detail.replaceChildren(cover, el('h1', null, s.meta.title), el('p', 'menu-artist', s.meta.artist),
-      diffs, sp, prev, play);
+      diffs, sp, play);
   }
 
   function select(s) {
@@ -141,3 +142,10 @@ const Menu = (() => {
 
   return { show, stopPreview, get speed() { return speed; } };
 })();
+
+// Fullscreen + landscape lock; both best-effort (unsupported on some browsers, e.g. iOS).
+document.getElementById('fs-btn').addEventListener('click', async () => {
+  if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) { /* ignore */ } return; }
+  try { await document.documentElement.requestFullscreen(); } catch (e) { /* ignore */ }
+  try { await screen.orientation.lock('landscape'); } catch (e) { /* ignore */ }
+});

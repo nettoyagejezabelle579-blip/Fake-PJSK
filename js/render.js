@@ -11,7 +11,7 @@ const Render = (() => {
   // Effect tuning
   const FX = { glowFade: 0.15, particles: 10, partLife: 0.45, bounce: 0.18, bgDots: 14, bannerIn: 0.35 };
 
-  let cv, g, W = 0, H = 0;
+  let cv, g, W = 0, H = 0, SA = { l: 0, t: 0, r: 0 }; // safe-area insets (px)
   let bg, dot;                                   // cached background + soft-dot sprite
   const rmq = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let reduced = !!(rmq && rmq.matches);
@@ -31,6 +31,8 @@ const Render = (() => {
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     W = cv.clientWidth;
     H = cv.clientHeight;
+    const cs = getComputedStyle(document.documentElement);
+    SA = { l: parseFloat(cs.getPropertyValue('--sal')) || 0, t: parseFloat(cs.getPropertyValue('--sat')) || 0, r: parseFloat(cs.getPropertyValue('--sar')) || 0 };
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -82,7 +84,7 @@ const Render = (() => {
   }
 
   function geo() {
-    return { cx: W / 2, hy: H * 0.06, jy: H * 0.84, half: Math.min(W * 0.49, H * 0.62) };
+    return { cx: W / 2, hy: H * 0.06, jy: H * 0.85, half: Math.min((W - SA.l - SA.r) * 0.46, H * 1.05) };
   }
 
   // depth d: 0 = judgment line, 1 = far end. u: -1..1 across the highway.
@@ -230,7 +232,7 @@ const Render = (() => {
     // Judgement + combo
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    const big = Math.max(28, Math.min(W, H) * 0.08);
+    const big = Math.max(24, H * 0.08);
     if (s.lastJudge && t - s.lastJudge.time < 0.6) {
       g.font = `900 ${big}px system-ui, sans-serif`;
       g.fillStyle = JUDGE_COLORS[s.lastJudge.judge];
@@ -247,7 +249,8 @@ const Render = (() => {
       const ca = t - comboAt;
       const bs = reduced || ca < 0 || ca > FX.bounce ? 1 : 1 + 0.22 * (1 - ca / FX.bounce) ** 2;
       g.save();
-      g.translate(G.cx, H * 0.34);
+      const cx = Math.min(W - SA.r - big * 1.6, G.cx + G.half * 0.72); // right-centre
+      g.translate(cx, H * 0.46);
       g.scale(bs, bs);
       g.font = `900 ${big * 1.4}px system-ui, sans-serif`;
       g.fillStyle = '#ffffff';
@@ -255,7 +258,7 @@ const Render = (() => {
       g.restore();
       g.font = `700 ${big * 0.45}px system-ui, sans-serif`;
       g.fillStyle = '#ffffff';
-      g.fillText('COMBO', G.cx, H * 0.34 + big * 0.95);
+      g.fillText('COMBO', cx, H * 0.46 + big * 0.95);
     }
 
     // Full Combo / All Perfect
@@ -268,7 +271,7 @@ const Render = (() => {
     g.textBaseline = 'top';
     g.font = `800 ${Math.max(22, big * 0.55)}px system-ui, sans-serif`;
     g.fillStyle = '#ffffff';
-    g.fillText(String(s.score).padStart(7, '0'), 16, 16);
+    g.fillText(String(s.score).padStart(7, '0'), 16 + SA.l, 12 + SA.t);
   }
 
   function drawClear(age, ap, G, big) {
