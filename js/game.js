@@ -73,6 +73,37 @@ const Game = (() => {
   const title = document.getElementById('overlay-title');
   const text = document.getElementById('overlay-text');
   const btn = document.getElementById('start-btn');
+  const cover = document.getElementById('overlay-cover');
+  const diffSelect = document.getElementById('diff-select');
+
+  const DIFFS = ['easy', 'normal', 'hard'];
+  const q = new URLSearchParams(location.search);
+  const songId = q.get('song') || 'demo';
+  let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
+
+  function selectDiff(d) {
+    diff = d;
+    for (const b of diffSelect.children) b.setAttribute('aria-pressed', b.dataset.diff === d);
+  }
+
+  async function showSong() {
+    const meta = await AudioEngine.loadMeta(songId);
+    const levels = meta.difficulties || {};
+    title.textContent = meta.title;
+    text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K · or tap the lanes`;
+    if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; }
+    const avail = DIFFS.filter((d) => d in levels);
+    diffSelect.replaceChildren(...avail.map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'diff-btn';
+      b.dataset.diff = d;
+      b.innerHTML = `${d}<span>${levels[d]}</span>`;
+      b.addEventListener('click', () => selectDiff(d));
+      return b;
+    }));
+    selectDiff(avail.includes(diff) ? diff : avail[0] || diff);
+  }
 
   function finish() {
     state.running = false;
@@ -87,9 +118,7 @@ const Game = (() => {
 
   async function start() {
     await AudioEngine.init();
-    const q = new URLSearchParams(location.search);
-    const id = q.get('song') || 'demo', diff = q.get('diff') || 'normal';
-    const [{ buffer }, chart] = await Promise.all([AudioEngine.loadSong(id), fetchChart(id, diff)]);
+    const [{ buffer }, chart] = await Promise.all([AudioEngine.loadSong(songId), fetchChart(songId, diff)]);
     loadChart(chart);
     const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
     state.duration = Math.max(buffer.duration, last + 1);
@@ -117,6 +146,7 @@ const Game = (() => {
     (lane) => { state.pressed[lane] = Math.max(0, state.pressed[lane] - 1); },
   );
   btn.addEventListener('click', start);
+  showSong();
   Render.draw(-10, state);
   requestAnimationFrame(frame);
 

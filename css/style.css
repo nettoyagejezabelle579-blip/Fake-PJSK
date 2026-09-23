@@ -9,4 +9,14 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 #overlay p { font-size: clamp(18px, 4.5vw, 28px); margin: 0; white-space: pre-line; line-height: 1.4; }
 #start-btn { font-size: 32px; font-weight: 800; min-width: 240px; min-height: 88px; border: 0;
   border-radius: 20px; background: #33e0ff; color: #000; cursor: pointer; }
+#overlay-cover { width: min(40vw, 30vh, 220px); aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
+#diff-select { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+#diff-select:empty { display: none; }
+.diff-btn { font-size: 20px; font-weight: 800; min-width: 104px; min-height: 72px; border: 3px solid #fff;
+  border-radius: 16px; background: #222; color: #fff; cursor: pointer; text-transform: uppercase; }
+.diff-btn span { display: block; font-size: 28px; }
+.diff-btn[aria-pressed="true"] { background: #fff; color: #000; }
+.diff-btn[data-diff="easy"] { border-color: #5fe07a; }
+.diff-btn[data-diff="normal"] { border-color: #5fb8ff; }
+.diff-btn[data-diff="hard"] { border-color: #ffb13c; }
 #start-btn:focus-visible { outline: 4px solid #fff; outline-offset: 4px; }

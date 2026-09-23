@@ -3,9 +3,10 @@
   "artist": "Fake-PJSK",
   "audio": "song.wav",
   "bpm": 120,
-  "difficulties": [
-    "easy",
-    "normal",
-    "hard"
-  ]
+  "difficulties": {
+    "easy": 5,
+    "normal": 12,
+    "hard": 20
+  },
+  "cover": "cover.svg"
 }

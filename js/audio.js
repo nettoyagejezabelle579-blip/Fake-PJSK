@@ -15,8 +15,13 @@ const AudioEngine = (() => {
   }
 
   // Song folder songs/<id>/: meta.json + audio file named by meta.audio.
+  // meta: { title, artist, cover, audio, bpm, difficulties: { easy, normal, hard } (levels) }
+  async function loadMeta(id) {
+    return (await fetch(`songs/${id}/meta.json`)).json();
+  }
+
   async function loadSong(id) {
-    const meta = await (await fetch(`songs/${id}/meta.json`)).json();
+    const meta = await loadMeta(id);
     return { meta, buffer: await load(`songs/${id}/${meta.audio}`) };
   }
 
@@ -74,5 +79,5 @@ const AudioEngine = (() => {
   // Song position (seconds) that was audible when an input event happened.
   function songTimeAt(eventTimeStamp) { return outputTimeAt(eventTimeStamp) - startAt; }
 
-  return { init, load, loadSong, makeMetronome, play, stop, songTime, songTimeAt };
+  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, songTime, songTimeAt };
 })();
