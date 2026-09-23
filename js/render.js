@@ -527,10 +527,10 @@ const Render = (() => {
     const lr = W - Math.max(SA.r + 8, W * 0.05) - pb - u * 0.2, lw = Math.min(W * 0.16, u * 3), lx = lr - lw;
     const life = Math.max(0, s.life ?? 1000), lk = life / 1000;
     // capsule with the heart inside on the left, bar to its right; LIFE tab and value sit on its top edge
-    const cy = y0 + u * 0.36, ch = u * 0.34, cx0 = lx - u * 0.45;
+    const cy = y0 + u * 0.36, ch = u * 0.34, cx0 = lx - u * 0.57;
     capsule(cx0, cy, lr - cx0, ch);
     // bar starts under the heart so the two read as one piece
-    const hx = cx0 + u * 0.22, hy = cy + ch / 2 - u * 0.015, hr = u * 0.15;
+    const hx = cx0 + u * 0.34, hy = cy + ch / 2 - u * 0.015, hr = u * 0.15;
     const bx = hx, bwid = lr - u * 0.12 - bx, lh = u * 0.13, ly = cy + (ch - lh) / 2;
     const lc = lk < 0.3 ? '#ff6b6b' : '#7cf0a0';
     rrect(g, bx, ly, bwid, lh, lh / 2);
