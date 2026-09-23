@@ -1,7 +1,7 @@
 // Game state, chart loading, judgement, score/combo, main loop.
 const Game = (() => {
   // Timing windows (± seconds). Generous by design.
-  const WINDOWS = { perfect: 0.070, great: 0.120, good: 0.170 };
+  const WINDOWS = { perfect: 0.060, great: 0.110, good: 0.160 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 4;
 
@@ -11,7 +11,7 @@ const Game = (() => {
     duration: 0,
     score: 0, combo: 0, maxCombo: 0,
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
-    lastJudge: null, // { judge, time }
+    lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, judge, time }
     pressed: new Array(LANES).fill(0),
   };
@@ -41,11 +41,11 @@ const Game = (() => {
     return { bpm, offset, notes };
   }
 
-  function record(n, judge, t) {
+  function record(n, judge, t, dt = 0) {
     n.state = judge === 'miss' ? 2 : 1;
     n.judge = judge;
     state.counts[judge]++;
-    state.lastJudge = { judge, time: t };
+    state.lastJudge = { judge, time: t, dt };
     if (judge === 'miss') {
       state.combo = 0;
       return;
@@ -64,7 +64,7 @@ const Game = (() => {
       if (dt > WINDOWS.good) continue;  // too late; update() will miss it
       if (dt < -WINDOWS.good) return;   // earliest candidate is still too far away
       const a = Math.abs(dt);
-      record(n, a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : 'good', t);
+      record(n, a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : 'good', t, dt);
       return;
     }
   }

@@ -129,6 +129,13 @@ const Render = (() => {
       g.font = `900 ${big}px system-ui, sans-serif`;
       g.fillStyle = JUDGE_COLORS[s.lastJudge.judge];
       g.fillText(s.lastJudge.judge.toUpperCase(), G.cx, H * 0.5);
+      const j = s.lastJudge.judge;
+      if (j === 'great' || j === 'good') {
+        const early = s.lastJudge.dt < 0;
+        g.font = `800 ${big * 0.5}px system-ui, sans-serif`;
+        g.fillStyle = early ? '#5cd0ff' : '#ff8a5c';
+        g.fillText(early ? 'EARLY' : 'LATE', G.cx, H * 0.5 + big * 0.8);
+      }
     }
     if (s.combo >= 2) {
       g.font = `900 ${big * 1.4}px system-ui, sans-serif`;
