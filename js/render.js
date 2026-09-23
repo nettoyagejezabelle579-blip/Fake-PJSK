@@ -555,15 +555,17 @@ const Render = (() => {
     g.font = `900 ${ch * 0.42}px ${FONT}`;
     g.fillStyle = '#fff'; g.fillText('LIFE', tabX + tabW / 2, cy - tabH * 0.35);
     const hs = ch * 0.58, hx = cx0 + ch * 0.55, hy = cy + ch * 0.5;
-    // classic parametric heart: x = 16 sin³t, y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t
-    const hk = hs * 1.05 / 32;
+    // round lobes + pointed tip as one path; the lower curves leave each lobe along its tangent (no side notches)
+    const H_ = (x, y) => [hx + x * hs, hy + y * hs], A0 = Math.PI * 0.8, A1 = Math.PI * 0.2;
+    const tip = H_(0, 0.37), lp = H_(-0.25 + 0.27 * Math.cos(A0), -0.13 + 0.27 * Math.sin(A0)), rp = H_(0.25 + 0.27 * Math.cos(A1), -0.13 + 0.27 * Math.sin(A1));
+    const tx = 0.15 * Math.sin(A0) * hs, ty = 0.15 * Math.cos(A0) * hs;
     g.fillStyle = lc;
     g.beginPath();
-    for (let i = 0; i <= 64; i++) {
-      const a = (i / 64) * Math.PI * 2;
-      const px = 16 * Math.sin(a) ** 3, py = 13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a);
-      g[i ? 'lineTo' : 'moveTo'](hx + px * hk, hy - (py + 2.6) * hk);
-    }
+    g.moveTo(...tip);
+    g.bezierCurveTo(tip[0] - hs * 0.15, tip[1] - hs * 0.08, lp[0] + tx, lp[1] - ty, lp[0], lp[1]);
+    g.arc(hx - hs * 0.25, hy - hs * 0.13, hs * 0.27, A0, Math.PI * 2);
+    g.arc(hx + hs * 0.25, hy - hs * 0.13, hs * 0.27, Math.PI, Math.PI * 2 + A1);
+    g.bezierCurveTo(rp[0] - tx, rp[1] - ty, tip[0] + hs * 0.15, tip[1] - hs * 0.08, tip[0], tip[1]);
     g.closePath(); g.fill();
     const lx = cx0 + ch * 0.92, be = pl - ch * 0.35, lh = ch * 0.29, ly = hy - lh / 2;
     rrect(g, lx, ly, be - lx, lh, lh / 2);
