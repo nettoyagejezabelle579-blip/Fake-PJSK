@@ -63,6 +63,7 @@ const Menu = (() => {
     const avail = DIFFS.filter((d) => d in levels);
     if (!avail.includes(diff)) diff = avail[0] || 'normal';
     root.dataset.diff = diff;
+    detail.parentElement.style.setProperty('--cover', m.cover ? `url("songs/${s.id}/${m.cover}")` : 'none');
 
     const cover = el('img', 'phone-cover');
     cover.alt = '';
