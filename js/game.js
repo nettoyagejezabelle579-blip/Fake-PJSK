@@ -4,12 +4,14 @@ const Game = (() => {
   const WINDOWS = { perfect: 0.060, great: 0.110, good: 0.160 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 4;
+  const LIFE_MAX = 1000, MISS_DAMAGE = 60; // no fail: life only shows how the run went
 
   const state = {
     notes: [], // { time, lane, state: 0 pending | 1 hit | 2 missed, judge }
     running: false,
     duration: 0,
-    score: 0, combo: 0, maxCombo: 0,
+    score: 0, combo: 0, maxCombo: 0, life: LIFE_MAX,
+    lastGain: null,  // { v, time } for the +N next to the score
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, judge, time }
@@ -29,6 +31,8 @@ const Game = (() => {
     }
     state.notes = notes.sort((a, b) => a.time - b.time);
     state.score = state.combo = state.maxCombo = 0;
+    state.life = LIFE_MAX;
+    state.lastGain = null;
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
     state.lastJudge = null;
     state.effects = [];
@@ -48,11 +52,13 @@ const Game = (() => {
     state.lastJudge = { judge, time: t, dt };
     if (judge === 'miss') {
       state.combo = 0;
+      state.life = Math.max(0, state.life - MISS_DAMAGE);
       return;
     }
     state.combo++;
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     state.score += POINTS[judge];
+    state.lastGain = { v: POINTS[judge], time: t };
     state.effects.push({ lane: n.lane, judge, time: t });
   }
 
@@ -116,7 +122,7 @@ const Game = (() => {
     const levels = meta.difficulties || {};
     title.textContent = songTitle = meta.title;
     text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K (+Space = flick) · or tap, swipe up to flick`;
-    if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; }
+    if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; Render.setCover(cover.src); }
     const avail = DIFFS.filter((d) => d in levels);
     diffSelect.replaceChildren(...avail.map((d) => {
       const b = document.createElement('button');
@@ -131,7 +137,7 @@ const Game = (() => {
   }
 
   // Rank by score / max possible score.
-  const RANKS = [['S', 0.9], ['A', 0.8], ['B', 0.7], ['C', 0]];
+  const RANKS = Render.RANKS;
 
   const exportBtn = document.createElement('button');
   exportBtn.type = 'button';
@@ -163,6 +169,7 @@ const Game = (() => {
 
   function finish() {
     state.running = false;
+    document.body.classList.remove('playing');
     AudioEngine.stop();
     const c = state.counts;
     const ratio = state.notes.length ? state.score / (state.notes.length * POINTS.perfect) : 0;
@@ -193,6 +200,8 @@ const Game = (() => {
     exportBtn.hidden = songsBtn.hidden = true;
     AudioEngine.play(buffer);
     state.running = true;
+    paused = false;
+    document.body.classList.add('playing');
   }
 
   function frame() {
@@ -217,7 +226,39 @@ const Game = (() => {
     },
     (lane, stamp) => { if (state.running) hit(lane, AudioEngine.songTimeAt(stamp), true); },
   );
-  btn.addEventListener('click', start);
+  // Pause: suspends the AudioContext (the song clock), shows the overlay with Resume + Song Select.
+  let paused = false;
+  const pauseBtn = document.createElement('button');
+  pauseBtn.type = 'button';
+  pauseBtn.id = 'pause-btn';
+  pauseBtn.setAttribute('aria-label', 'Pause');
+  document.body.append(pauseBtn);
+  async function pause() {
+    if (!state.running) return;
+    state.running = false;
+    paused = true;
+    document.body.classList.remove('playing');
+    await AudioEngine.pause();
+    title.textContent = 'PAUSED';
+    text.textContent = '';
+    btn.textContent = 'RESUME';
+    songsBtn.hidden = false;
+    overlay.classList.add('paused');
+    overlay.classList.remove('hidden');
+  }
+  async function resume() {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('paused');
+    songsBtn.hidden = true;
+    await AudioEngine.resume();
+    paused = false;
+    state.running = true;
+    document.body.classList.add('playing');
+  }
+  pauseBtn.addEventListener('click', pause);
+  window.addEventListener('keydown', (e) => { if (e.code === 'Escape') (paused ? resume() : pause()); });
+
+  btn.addEventListener('click', () => (paused ? resume() : start()));
   showSong();
   Render.draw(-10, state);
   requestAnimationFrame(frame);

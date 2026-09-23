@@ -81,5 +81,9 @@ const AudioEngine = (() => {
   // Song position (seconds) that was audible when an input event happened.
   function songTimeAt(eventTimeStamp) { return outputTimeAt(eventTimeStamp) - startAt; }
 
-  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, songTime, songTimeAt };
+  // Pause freezes the audio clock itself, so song time stops with the music.
+  const pause = () => ctx.suspend();
+  const resume = () => ctx.resume();
+
+  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, pause, resume, songTime, songTimeAt };
 })();
