@@ -1,7 +1,7 @@
-// Song select: list from songs/index.json, cover/title/artist, difficulty + level, 10 s preview, speed.
+// Song select: category tabs, sortable song list, cover + difficulty, high score, 10 s preview; speed in settings popup.
 // Shown when the page has no ?song= param; Play navigates to ?song=&diff= for game.js.
 const Menu = (() => {
-  const DIFFS = ['easy', 'normal', 'hard'];
+  const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const PREVIEW_LEN = 10; // seconds
 
   const store = {
@@ -13,7 +13,8 @@ const Menu = (() => {
   let sel = null;     // selected song entry
   let diff = store.get('pjsk.diff', 'normal');
   let preview = null, previewTimer = 0;
-  let root, list, detail;
+  let cat = 'All', sort = store.get('pjsk.sort', 'default');
+  let root, tabs, list, detail, hiscore;
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -39,10 +40,27 @@ const Menu = (() => {
     previewTimer = setTimeout(stopPreview, PREVIEW_LEN * 1000);
   }
 
+  const lvl = (s) => (s.meta.difficulties || {})[diff];
+  const best = (id, d) => +store.get(`pjsk.best.${id}.${d}`, 0) || 0;
+  const cleared = (id, d) => store.get(`pjsk.clear.${id}.${d}`, '') === '1';
+
+  function visible() {
+    const v = songs.filter((s) => cat === 'All' || s.meta.category === cat);
+    if (sort === 'level') v.sort((a, b) => (lvl(a) ?? 1e9) - (lvl(b) ?? 1e9));
+    else if (sort === 'title') v.sort((a, b) => a.meta.title.localeCompare(b.meta.title));
+    return v;
+  }
+
+  function startGame() {
+    stopPreview();
+    location.search = new URLSearchParams({ song: sel.id, diff }).toString();
+  }
+
   function renderDetail() {
     const s = sel, levels = s.meta.difficulties || {};
     const avail = DIFFS.filter((d) => d in levels);
     if (!avail.includes(diff)) diff = avail[0] || 'normal';
+    root.dataset.diff = diff;
 
     const cover = el('img', 'menu-cover');
     cover.alt = '';
@@ -50,15 +68,82 @@ const Menu = (() => {
 
     const diffs = el('div', 'menu-diffs');
     for (const d of avail) {
-      const b = el('button', 'diff-btn', d);
+      const b = el('button', 'menu-diff');
       b.type = 'button';
       b.dataset.diff = d;
       b.setAttribute('aria-pressed', d === diff);
-      b.append(el('span', null, levels[d]));
-      b.addEventListener('click', () => { diff = d; store.set('pjsk.diff', d); renderDetail(); });
+      b.append(el('b', null, levels[d]), el('small', null, d.toUpperCase()));
+      b.addEventListener('click', () => { diff = d; store.set('pjsk.diff', d); renderDetail(); renderList(); });
       diffs.append(b);
     }
+    detail.replaceChildren(cover, diffs);
+    hiscore.textContent = best(s.id, diff).toLocaleString();
+  }
 
+  function markSel(scroll) {
+    for (const c of list.children) {
+      const on = c.dataset.id === sel.id;
+      c.setAttribute('aria-pressed', on);
+      if (on && scroll) c.scrollIntoView({ block: 'center', behavior: scroll });
+    }
+  }
+
+  function select(s) {
+    sel = s;
+    store.set('pjsk.song', s.id);
+    markSel('smooth');
+    renderDetail();
+    playPreview(s);
+  }
+
+  function renderList() {
+    const v = visible();
+    list.replaceChildren(...v.map((s) => {
+      const m = s.meta, levels = m.difficulties || {};
+      const b = el('button', 'menu-song');
+      b.type = 'button';
+      b.dataset.id = s.id;
+      const lv = el('div', 'song-lv');
+      lv.append(el('small', null, 'Song Lv.'), el('b', null, levels[diff] ?? '–'));
+      const img = el('img');
+      img.alt = '';
+      if (m.cover) img.src = `songs/${s.id}/${m.cover}`;
+      const clear = el('div', 'song-clear');
+      for (const d of DIFFS) {
+        const i = el('i', !(d in levels) ? 'na' : cleared(s.id, d) ? 'gold' : null);
+        i.title = d;
+        clear.append(i);
+      }
+      const txt = el('div', 'song-txt');
+      txt.append(el('strong', null, m.title), el('small', null, m.artist),
+        el('small', 'song-vocals', `Vocals/Artist: ${m.vocals || m.artist}`), clear);
+      b.append(lv, img, txt);
+      const tag = m.tag || m.category;
+      if (tag) b.append(el('span', 'song-tag', tag));
+      b.addEventListener('click', () => (sel === s ? startGame() : select(s)));
+      return b;
+    }));
+    if (sel) markSel('instant');
+  }
+
+  function renderTabs() {
+    const cats = ['All', ...new Set(songs.map((s) => s.meta.category).filter(Boolean))];
+    tabs.replaceChildren(...cats.map((c) => {
+      const b = el('button', 'menu-tab', c);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', c === cat);
+      b.addEventListener('click', () => {
+        cat = c;
+        renderTabs();
+        renderList();
+        const v = visible();
+        if (v.length && !v.includes(sel)) select(v[0]);
+      });
+      return b;
+    }));
+  }
+
+  function speedRow() {
     const sp = el('div', 'menu-speed');
     const val = el('output', null, Settings.get('noteSpeed').toFixed(1));
     const mk = (label, delta) => {
@@ -78,54 +163,68 @@ const Menu = (() => {
       b.addEventListener('contextmenu', e => e.preventDefault());
       return b;
     };
-    sp.append(el('span', null, 'Speed'), mk('−1', -1), mk('−', -0.1), val, mk('+', 0.1), mk('+1', 1));
-
-    const prev = el('button', 'menu-preview', '▶ Preview');
-    prev.type = 'button';
-    prev.addEventListener('click', () => playPreview(s));
-    sp.append(prev); // one row keeps Play on screen in landscape
-
-    const play = el('button', 'menu-play', 'PLAY');
-    play.type = 'button';
-    play.addEventListener('click', () => {
-      stopPreview();
-      location.search = new URLSearchParams({ song: s.id, diff }).toString();
-    });
-
-    detail.replaceChildren(cover, el('h1', null, s.meta.title), el('p', 'menu-artist', s.meta.artist),
-      diffs, sp, play);
+    sp.append(el('span', null, 'Note speed'), mk('−1', -1), mk('−', -0.1), val, mk('+', 0.1), mk('+1', 1));
+    return sp;
   }
 
-  function select(s) {
-    sel = s;
-    store.set('pjsk.song', s.id);
-    for (const c of list.children) c.setAttribute('aria-pressed', c.dataset.id === s.id);
-    renderDetail();
-    playPreview(s);
+  function btn(cls, text, label, fn) {
+    const b = el('button', cls, text);
+    b.type = 'button';
+    if (label) b.setAttribute('aria-label', label);
+    b.addEventListener('click', fn);
+    return b;
   }
 
-  function renderList() {
-    list.replaceChildren(...songs.map((s) => {
-      const b = el('button', 'menu-song');
-      b.type = 'button';
-      b.dataset.id = s.id;
-      const img = el('img');
-      img.alt = '';
-      if (s.meta.cover) img.src = `songs/${s.id}/${s.meta.cover}`;
-      const txt = el('div');
-      txt.append(el('strong', null, s.meta.title), el('small', null, s.meta.artist));
-      b.append(img, txt);
-      b.addEventListener('click', () => select(s));
-      return b;
-    }));
+  function buildTop() {
+    const top = el('div', 'menu-top');
+    const banner = el('div', 'menu-banner');
+    banner.append(el('h1', null, 'Solo Live'), el('p', null, 'Song Select'));
+
+    const sortBox = el('label', 'menu-sort');
+    sortBox.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
+    const sortSel = el('select');
+    sortSel.setAttribute('aria-label', 'Sort');
+    for (const [v, t] of [['default', 'Default'], ['level', 'Level'], ['title', 'Title']]) {
+      const o = el('option', null, t);
+      o.value = v;
+      sortSel.append(o);
+    }
+    sortSel.value = sort;
+    sortSel.addEventListener('change', () => { sort = sortSel.value; store.set('pjsk.sort', sort); renderList(); });
+    sortBox.append(sortSel);
+
+    const pop = el('dialog', 'menu-pop');
+    pop.append(el('h2', null, 'Settings'), speedRow(),
+      btn('menu-close', 'Close', null, () => pop.close()));
+    pop.addEventListener('click', (e) => { if (e.target === pop) pop.close(); });
+
+    const tools = el('div', 'menu-tools');
+    tools.append(sortBox, btn('menu-burger', '☰', 'Menu', () => pop.showModal()));
+    top.append(btn('menu-back', '‹', 'Back', () => { stopPreview(); history.back(); }), banner, tools, pop);
+    return top;
+  }
+
+  function buildBottom() {
+    const bot = el('div', 'menu-bottom');
+    const hs = el('div', 'menu-hs', 'High Score');
+    hiscore = el('span', null, '0');
+    hs.append(hiscore);
+    bot.append(hs,
+      btn('menu-random', '⤮ Random', null, () => {
+        const v = visible();
+        if (v.length) select(v[Math.floor(Math.random() * v.length)]);
+      }),
+      btn('menu-play', 'Select', null, () => sel && startGame()));
+    return bot;
   }
 
   async function show() {
     root = el('div', 'menu');
     root.id = 'menu';
+    tabs = el('div', 'menu-tabs');
     list = el('div', 'menu-list');
-    detail = el('div', 'menu-detail');
-    root.append(list, detail);
+    detail = el('div', 'menu-art');
+    root.append(buildTop(), tabs, list, detail, buildBottom());
     document.body.append(root);
 
     const idx = await (await fetch('songs/index.json')).json();
@@ -134,12 +233,11 @@ const Menu = (() => {
       try { return { id, meta: await AudioEngine.loadMeta(id) }; } catch (e) { return null; }
     }))).filter(Boolean);
     if (!songs.length) { detail.replaceChildren(el('p', null, 'No songs found')); return; }
-    renderList();
     const last = store.get('pjsk.song', null);
-    const s = songs.find((x) => x.id === last) || songs[0];
-    sel = s;
-    for (const c of list.children) c.setAttribute('aria-pressed', c.dataset.id === s.id);
+    sel = songs.find((x) => x.id === last) || songs[0];
+    renderTabs();
     renderDetail(); // no autoplay preview on load; browsers block it without a gesture
+    renderList();
   }
 
   if (!new URLSearchParams(location.search).get('song')) show();
