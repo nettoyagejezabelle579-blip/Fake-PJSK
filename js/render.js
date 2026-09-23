@@ -5,6 +5,7 @@ const Render = (() => {
   const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
   const NOTE_DEPTH = 0.012;
   const LANE_COLORS = ['#33e0ff', '#ff5fa8', '#ff5fa8', '#33e0ff'];
+  const HOLD_COLOR = '#5cff9a', FLICK_COLOR = '#ff4d5e';
   const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
 
   let cv, g, W = 0, H = 0;
@@ -93,17 +94,32 @@ const Render = (() => {
     // Notes (far to near so near ones draw on top)
     for (let i = s.notes.length - 1; i >= 0; i--) {
       const n = s.notes[i];
-      if (n.state !== 0) continue;
+      if (n.type === 'tail') continue;
       const d = (n.time - t) / LOOKAHEAD;
-      if (d > far || d < near - NOTE_DEPTH) continue;
       const inset = 0.04;
+      if (n.type === 'hold' && n.tail.state === 0 && n.state !== 2) {
+        const d0 = n.state === 1 ? 0 : Math.max(near, d), d1 = Math.min(far, (n.tail.time - t) / LOOKAHEAD);
+        if (d1 > d0) {
+          quad(G, d0, d1, laneU(n.lane) + inset * 2, laneU(n.lane + 1) - inset * 2);
+          g.fillStyle = n.held ? 'rgba(92,255,154,0.6)' : 'rgba(92,255,154,0.35)';
+          g.fill();
+        }
+      }
+      if (n.state !== 0) continue;
+      if (d > far || d < near - NOTE_DEPTH) continue;
       quad(G, d - NOTE_DEPTH, d + NOTE_DEPTH, laneU(n.lane) + inset, laneU(n.lane + 1) - inset);
       g.globalAlpha = Math.min(1, (far - d) * 6);
-      g.fillStyle = LANE_COLORS[n.lane];
+      g.fillStyle = n.type === 'hold' ? HOLD_COLOR : n.type === 'flick' ? FLICK_COLOR : LANE_COLORS[n.lane];
       g.fill();
       g.lineWidth = 3;
       g.strokeStyle = '#ffffff';
       g.stroke();
+      if (n.type === 'flick') { // upward arrow above the note
+        const c = proj(G, d + NOTE_DEPTH, (laneU(n.lane) + laneU(n.lane + 1)) / 2);
+        const w = (G.half / LANES) * 0.5 * c.s;
+        g.beginPath(); g.moveTo(c.x - w, c.y - 4 * c.s); g.lineTo(c.x, c.y - w * 1.2); g.lineTo(c.x + w, c.y - 4 * c.s);
+        g.closePath(); g.fillStyle = FLICK_COLOR; g.fill(); g.stroke();
+      }
       g.globalAlpha = 1;
     }
 

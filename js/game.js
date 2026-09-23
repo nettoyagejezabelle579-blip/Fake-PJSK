@@ -19,9 +19,14 @@ const Game = (() => {
   // Chart JSON: { offset, bpm, notes: [{ t, lane, type }] }; note time = offset + t (seconds).
   function loadChart(chart) {
     const off = chart.offset || 0;
-    state.notes = chart.notes
-      .map((n) => ({ time: off + n.t, lane: n.lane, type: n.type || 'tap', state: 0, judge: null }))
-      .sort((a, b) => a.time - b.time);
+    // Hold {t, end} → head note + 'tail' note (judged on release).
+    const notes = [];
+    for (const n of chart.notes) {
+      const h = { time: off + n.t, lane: n.lane, type: n.type || 'tap', state: 0, judge: null };
+      notes.push(h);
+      if (h.type === 'hold') notes.push(h.tail = { time: off + n.end, lane: n.lane, type: 'tail', head: h, state: 0, judge: null });
+    }
+    state.notes = notes.sort((a, b) => a.time - b.time);
     state.score = state.combo = state.maxCombo = 0;
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
     state.lastJudge = null;
@@ -47,23 +52,38 @@ const Game = (() => {
     state.effects.push({ lane: n.lane, judge, time: t });
   }
 
-  // t: song time (audio clock) at which the press happened.
-  function hit(lane, t) {
+  const grade = (a) => a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : a <= WINDOWS.good ? 'good' : 'miss';
+
+  // t: song time (audio clock) at which the press (or flick, if flick) happened.
+  function hit(lane, t, flick = false) {
     for (const n of state.notes) {
-      if (n.state !== 0 || n.lane !== lane) continue;
+      if (n.state !== 0 || n.lane !== lane || n.type === 'tail' || (n.type === 'flick') !== flick) continue;
       const dt = t - n.time;
       if (dt > WINDOWS.good) continue;  // too late; update() will miss it
       if (dt < -WINDOWS.good) return;   // earliest candidate is still too far away
-      const a = Math.abs(dt);
-      record(n, a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : 'good', t, dt);
+      record(n, grade(Math.abs(dt)), t, dt);
+      if (n.type === 'hold') n.held = true;
       return;
+    }
+  }
+
+  // Lane fully released at song time t: judge any held hold's tail (early release).
+  function release(lane, t) {
+    for (const n of state.notes) {
+      if (n.type !== 'tail' || n.state !== 0 || n.lane !== lane || !n.head.held) continue;
+      n.head.held = false;
+      record(n, grade(Math.abs(t - n.time)), t, t - n.time);
     }
   }
 
   function update(t) {
     for (const n of state.notes) {
       if (n.time - t > 0) break;
-      if (n.state === 0 && t - n.time > WINDOWS.good) record(n, 'miss', t);
+      if (n.state !== 0) continue;
+      if (n.type === 'tail') {
+        if (n.head.held) { n.head.held = false; record(n, 'perfect', t); }
+        else if (n.head.state === 2) record(n, 'miss', t);
+      } else if (t - n.time > WINDOWS.good) record(n, 'miss', t);
     }
     state.effects = state.effects.filter((f) => t - f.time < 0.5);
     if (t > state.duration + 0.5) finish();
@@ -90,7 +110,7 @@ const Game = (() => {
     const meta = await AudioEngine.loadMeta(songId);
     const levels = meta.difficulties || {};
     title.textContent = meta.title;
-    text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K · or tap the lanes`;
+    text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K (+Space = flick) · or tap, swipe up to flick`;
     if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; }
     const avail = DIFFS.filter((d) => d in levels);
     diffSelect.replaceChildren(...avail.map((d) => {
@@ -143,7 +163,11 @@ const Game = (() => {
       state.pressed[lane]++;
       if (state.running) hit(lane, AudioEngine.songTimeAt(stamp));
     },
-    (lane) => { state.pressed[lane] = Math.max(0, state.pressed[lane] - 1); },
+    (lane, stamp) => {
+      state.pressed[lane] = Math.max(0, state.pressed[lane] - 1);
+      if (state.running && !state.pressed[lane]) release(lane, AudioEngine.songTimeAt(stamp));
+    },
+    (lane, stamp) => { if (state.running) hit(lane, AudioEngine.songTimeAt(stamp), true); },
   );
   btn.addEventListener('click', start);
   showSong();
