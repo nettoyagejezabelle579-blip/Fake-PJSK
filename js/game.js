@@ -139,6 +139,11 @@ const Game = (() => {
   exportBtn.textContent = 'EXPORT CSV';
   exportBtn.hidden = true;
   btn.after(exportBtn);
+  const songsBtn = exportBtn.cloneNode();
+  songsBtn.id = 'songs-btn';
+  songsBtn.textContent = 'SONG SELECT';
+  exportBtn.after(songsBtn);
+  songsBtn.addEventListener('click', () => { location.search = ''; });
 
   function exportCsv() {
     const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
@@ -169,7 +174,7 @@ const Game = (() => {
       `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}\n` +
       `Avg offset ${avg >= 0 ? '+' : ''}${avg.toFixed(1)} ms ${avg < 0 ? '(early)' : avg > 0 ? '(late)' : ''}`;
     btn.textContent = 'RETRY';
-    exportBtn.hidden = false;
+    exportBtn.hidden = songsBtn.hidden = false;
     overlay.classList.remove('hidden');
   }
 
@@ -180,7 +185,7 @@ const Game = (() => {
     const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
-    exportBtn.hidden = true;
+    exportBtn.hidden = songsBtn.hidden = true;
     AudioEngine.play(buffer);
     state.running = true;
   }

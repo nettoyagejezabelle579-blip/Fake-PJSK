@@ -3,13 +3,13 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 #stage { display: block; width: 100vw; height: 100vh; height: 100dvh;
   touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 16px; background: rgba(0, 0, 0, 0.8); text-align: center; padding: 16px; }
+  justify-content: safe center; gap: 16px; background: rgba(0, 0, 0, 0.8); text-align: center; padding: 16px; overflow-y: auto; }
 #overlay.hidden { display: none; }
 #overlay h1 { font-size: clamp(32px, 8vw, 64px); margin: 0; }
 #overlay p { font-size: clamp(18px, 4.5vw, 28px); margin: 0; white-space: pre-line; line-height: 1.4; }
 #start-btn { font-size: 32px; font-weight: 800; min-width: 240px; min-height: 88px; border: 0;
   border-radius: 20px; background: #33e0ff; color: #000; cursor: pointer; }
-#overlay-cover { width: min(40vw, 30vh, 220px); aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
+#overlay-cover { width: min(40vw, 22vh, 220px); flex-shrink: 0; aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
 #diff-select { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 #diff-select:empty { display: none; }
 .diff-btn { font-size: 20px; font-weight: 800; min-width: 104px; min-height: 72px; border: 3px solid #fff;
@@ -40,6 +40,6 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 .menu-preview { font-size: 20px; padding: 0 20px; }
 .menu-play { min-width: 200px; min-height: 76px; background: #3ce6d2; color: #000; border-color: #3ce6d2; }
 @media (max-width: 700px) { .menu { flex-direction: column; } .menu-list { flex: 0 0 auto; max-height: 34vh; } }
-#export-btn { font-size: 24px; font-weight: 800; min-width: 240px; min-height: 72px; border: 3px solid #33e0ff;
+#export-btn, #songs-btn { font-size: 24px; font-weight: 800; min-width: 240px; min-height: 72px; border: 3px solid #33e0ff;
   border-radius: 20px; background: transparent; color: #33e0ff; cursor: pointer; }
-#export-btn[hidden] { display: none; }
+#export-btn[hidden], #songs-btn[hidden] { display: none; }
