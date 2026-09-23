@@ -46,7 +46,7 @@ const Menu = (() => {
 
   function visible() {
     const q = query.trim().toLowerCase();
-    const v = songs.filter((s) => (cat === 'All' || s.meta.category === cat) &&
+    const v = songs.filter((s) => (cat === 'All' || (s.meta.category || 'Other') === cat) &&
       (!q || `${s.meta.title}\n${s.meta.artist}\n${s.meta.vocals || ''}`.toLowerCase().includes(q)));
     if (sort === 'level') v.sort((a, b) => (lvl(a) ?? 1e9) - (lvl(b) ?? 1e9));
     else if (sort === 'title') v.sort((a, b) => a.meta.title.localeCompare(b.meta.title));
@@ -87,7 +87,11 @@ const Menu = (() => {
       b.addEventListener('click', () => { diff = d; store.set('pjsk.diff', d); renderDetail(); renderList(); });
       diffs.append(b);
     }
-    detail.replaceChildren(cover, info, diffs);
+    const share = iconBtn('phone-share', 'share', 'Share', async () => {
+      const url = `${location.origin}${location.pathname}?${new URLSearchParams({ song: s.id, diff })}`;
+      try { await (navigator.share ? navigator.share({ title: m.title, url }) : navigator.clipboard.writeText(url)); } catch (e) { /* cancelled */ }
+    });
+    detail.replaceChildren(share, cover, info, diffs);
   }
 
   function markSel(scroll) {
@@ -136,7 +140,8 @@ const Menu = (() => {
   }
 
   function renderTabs() {
-    const cats = ['All', ...new Set(songs.map((s) => s.meta.category).filter(Boolean))];
+    const named = [...new Set(songs.map((s) => s.meta.category).filter(Boolean))];
+    const cats = ['All', ...named, ...(named.length && songs.some((s) => !s.meta.category) ? ['Other'] : [])];
     tabs.replaceChildren(...cats.map((c) => {
       const b = el('button', 'menu-tab', c);
       b.type = 'button';
@@ -189,6 +194,7 @@ const Menu = (() => {
     list: '<svg viewBox="0 0 24 24"><path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11"/></svg>',
     filter: '<svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24"><path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
     note: '<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
   };
   function iconBtn(cls, icon, label, fn) {
@@ -222,13 +228,14 @@ const Menu = (() => {
       markSel('instant');
     });
     view.append(el('span', null, 'List'));
-    top.append(search, view, ...buildMenuBtn());
+    top.append(search, view);
     return top;
   }
 
   function buildPhone() {
     const phone = el('div', 'menu-phone');
     const notch = el('div', 'phone-notch');
+    const tools = el('div', 'menu-tools');
     const sortBox = el('label', 'phone-sort');
     const sortSel = el('select');
     sortSel.setAttribute('aria-label', 'Sort');
@@ -241,23 +248,23 @@ const Menu = (() => {
     sortSel.addEventListener('change', () => { sort = sortSel.value; store.set('pjsk.sort', sort); renderList(); });
     sortBox.append(sortSel);
     const filter = iconBtn('phone-filter', 'filter', 'Sort', () => sortSel.showPicker?.() ?? sortSel.focus());
-    notch.append(filter, sortBox);
+    tools.append(filter, sortBox);
 
-    const actions = el('div', 'phone-actions');
-    actions.append(
+    const icons = el('div', 'phone-actions');
+    icons.append(
       iconBtn('phone-icon', 'shuffle', 'Random song', () => {
         const v = visible();
         if (v.length) select(v[Math.floor(Math.random() * v.length)]);
       }),
-      btn('phone-go', 'Decide', null, () => sel && startGame()),
       iconBtn('phone-icon', 'note', 'Play preview', () => sel && playPreview(sel)));
-    phone.append(notch, detail, actions);
-    return phone;
+    phone.append(notch, detail, btn('phone-go', 'Decide', null, () => sel && startGame()), icons);
+    return [phone, tools];
   }
 
   function buildMenuBtn() {
     const pop = el('dialog', 'menu-pop');
-    pop.append(el('h2', null, 'Settings'), speedRow(),
+    const fs = btn('menu-close', 'Fullscreen', null, () => document.getElementById('fs-btn').click());
+    pop.append(el('h2', null, 'Settings'), speedRow(), fs,
       btn('menu-close', 'Close', null, () => pop.close()));
     pop.addEventListener('click', (e) => { if (e.target === pop) pop.close(); });
     const b = btn('menu-burger', '☰', 'Settings', () => pop.showModal());
@@ -273,7 +280,7 @@ const Menu = (() => {
     detail = el('div', 'phone-detail');
     const main = el('div', 'menu-main');
     main.append(buildTop(), list);
-    root.append(buildSide(), main, buildPhone());
+    root.append(buildSide(), main, ...buildPhone(), ...buildMenuBtn());
     document.body.append(root);
 
     const idx = await (await fetch('songs/index.json')).json();
