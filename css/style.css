@@ -20,3 +20,23 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 .diff-btn[data-diff="normal"] { border-color: #5fb8ff; }
 .diff-btn[data-diff="hard"] { border-color: #ffb13c; }
 #start-btn:focus-visible { outline: 4px solid #fff; outline-offset: 4px; }
+
+/* Song select */
+.menu { position: fixed; inset: 0; z-index: 10; display: flex; gap: 16px; padding: 16px; background: #0b0b14; color: #fff; overflow: hidden; }
+.menu-list { flex: 1 1 45%; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.menu-song { display: flex; align-items: center; gap: 14px; min-height: 84px; padding: 10px; border: 3px solid #444; border-radius: 14px; background: #1a1a28; color: #fff; text-align: left; font: inherit; cursor: pointer; }
+.menu-song[aria-pressed="true"] { border-color: #3ce6d2; background: #20303a; }
+.menu-song img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+.menu-song strong { display: block; font-size: 22px; }
+.menu-song small { font-size: 17px; color: #bbb; }
+.menu-detail { flex: 1 1 55%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; overflow-y: auto; }
+.menu-detail h1 { font-size: clamp(28px, 6vw, 52px); margin: 0; }
+.menu-artist { font-size: 22px; color: #ccc; margin: 0; }
+.menu-cover { width: min(40vw, 30vh, 240px); aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
+.menu-diffs { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.menu-speed { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; }
+.menu-speed output { min-width: 80px; }
+.menu-step, .menu-preview, .menu-play { min-width: 64px; min-height: 64px; font-size: 28px; font-weight: 800; border: 3px solid #fff; border-radius: 14px; background: transparent; color: #fff; cursor: pointer; }
+.menu-preview { font-size: 20px; padding: 0 20px; }
+.menu-play { min-width: 200px; min-height: 76px; background: #3ce6d2; color: #000; border-color: #3ce6d2; }
+@media (max-width: 700px) { .menu { flex-direction: column; } .menu-list { flex: 0 0 auto; max-height: 34vh; } }

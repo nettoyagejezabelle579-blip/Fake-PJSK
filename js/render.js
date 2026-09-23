@@ -1,7 +1,7 @@
 // Canvas drawing: perspective 4-lane highway, falling notes, judgment line, effects.
 const Render = (() => {
   const LANES = 4;
-  const LOOKAHEAD = 1.3; // seconds of chart visible above the judgment line
+  const LOOKAHEAD = 1.3 / (+new URLSearchParams(location.search).get('speed') || 1); // seconds visible; ?speed= from menu
   const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
   const NOTE_DEPTH = 0.012;
   const LANE_COLORS = ['#33e0ff', '#ff5fa8', '#ff5fa8', '#33e0ff'];
