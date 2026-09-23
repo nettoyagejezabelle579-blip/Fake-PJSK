@@ -435,22 +435,23 @@ const Render = (() => {
       const ca = t - comboAt;
       const bs = reduced || ca < 0 || ca > FX.bounce ? 1 : 1 + 0.22 * (1 - ca / FX.bounce) ** 2;
       const cx = Math.min(W - SA.r - big * 1.8, G.cx + G.half * 1.18), cy = H * 0.44;
-      g.font = `900 ${big * 0.42}px ${FONT}`;
-      g.shadowColor = '#b36bff'; g.shadowBlur = 10;
-      g.fillStyle = '#e4ccff';
-      g.fillText('COMBO', cx, cy - big * 1.0);
-      g.shadowBlur = 0;
+      // pale lavender fill, thin violet outline, soft violet glow (label and number share the look)
+      const glowText = (txt, x, y, size) => {
+        g.font = `900 ${size}px ${FONT}`;
+        g.lineJoin = 'round';
+        g.shadowColor = 'rgba(150,90,255,0.9)'; g.shadowBlur = size * 0.22;
+        g.lineWidth = size * 0.07; g.strokeStyle = '#7b4dff';
+        g.strokeText(txt, x, y);
+        g.shadowBlur = 0;
+        g.fillStyle = '#f5efff'; g.fillText(txt, x, y);
+      };
+      if ('letterSpacing' in g) g.letterSpacing = `${Math.round(big * 0.04)}px`;
+      glowText('COMBO', cx, cy - big * 1.08, big * 0.4);
+      if ('letterSpacing' in g) g.letterSpacing = '0px';
       g.save();
       g.translate(cx, cy);
       g.scale(bs, bs);
-      g.font = `900 ${big * 1.35}px ${FONT}`;
-      const cg = g.createLinearGradient(0, -big * 0.7, 0, big * 0.7);
-      cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.55, '#ffffff'); cg.addColorStop(1, '#e2c4ff');
-      g.shadowColor = '#8e4dff'; g.shadowBlur = 14;
-      g.lineWidth = big * 0.1; g.strokeStyle = 'rgba(120,70,200,0.7)'; g.lineJoin = 'round';
-      g.strokeText(String(s.combo), 0, 0);
-      g.shadowBlur = 0;
-      g.fillStyle = cg; g.fillText(String(s.combo), 0, 0);
+      glowText(String(s.combo), 0, 0, big * 1.55);
       g.restore();
     }
 
