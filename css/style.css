@@ -38,7 +38,7 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 .menu-artist { font-size: clamp(14px, 4.5vh, 22px); color: #ccc; margin: 0; }
 .menu-cover { height: min(24vh, 240px); min-height: 0; flex-shrink: 1; aspect-ratio: 1; object-fit: cover; border-radius: 16px; }
 .menu-diffs { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.menu-speed { display: flex; align-items: center; gap: clamp(6px, 1.5vw, 12px); font-size: clamp(16px, 5vh, 22px); font-weight: 700; }
+.menu-speed { display: flex; align-items: center; gap: clamp(4px, 0.8vw, 12px); font-size: clamp(16px, 5vh, 22px); font-weight: 700; }
 .menu-speed output { min-width: 2.5em; text-align: center; }
 .menu-step { touch-action: none; user-select: none; -webkit-user-select: none; }
 .menu-step, .menu-preview, .menu-play { min-width: clamp(48px, 12vh, 64px); min-height: clamp(48px, 12vh, 64px); font-size: clamp(20px, 6vh, 28px); font-weight: 800; border: 3px solid #fff; border-radius: 14px; background: transparent; color: #fff; cursor: pointer; }
