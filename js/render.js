@@ -212,7 +212,8 @@ const Render = (() => {
   function laneAtX(x) {
     const G = geo();
     const u = (x - G.cx) / G.half;
-    return Math.max(0, Math.min(LANES - 1, Math.floor(((u + 1) / 2) * LANES)));
+    if (u < -1 || u >= 1) return -1; // outside the highway
+    return Math.floor(((u + 1) / 2) * LANES);
   }
 
   // Slab-style note: light top face, darker front edge, coloured end caps.
