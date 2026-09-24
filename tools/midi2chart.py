@@ -105,7 +105,7 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
     'easy':   dict(gap=1.0,  w=4, hold=1.0, flick=False, phrase=16, doubles=0, fill=0,   level=6),
     'normal': dict(gap=0.5,  w=3, hold=1.0, flick=True,  phrase=16, doubles=0, fill=0,   level=12),
     'hard':   dict(gap=0.25, w=3, hold=1.0, flick=True,  phrase=8,  doubles=2, fill=0,   level=19),
-    'expert': dict(gap=0.25, w=3, hold=1.0, flick=True,  phrase=8,  doubles=1, fill=1.0, level=24),
+    'expert': dict(gap=0.25, w=3, hold=1.0, flick=True,  phrase=8,  doubles=0.5, fill=0.5, chord_only=True, level=24),
     'master': dict(gap=0.25, w=2, hold=1.0, flick=True,  phrase=4,  doubles=1, fill=0.5, level=28),
 }
 
@@ -171,7 +171,7 @@ def build(score, warp, beat, cfg, audio_end):
     extra = []
     if cfg['doubles']:                                # mirrored second note on strong beats
         for n in notes:
-            if n['type'] == 'tap' and n['b'] % cfg['doubles'] == 0 and (cfg['fill'] or n['b'] in chords):
+            if n['type'] == 'tap' and n['b'] % cfg['doubles'] == 0 and (n['b'] in chords if cfg.get('chord_only') else cfg['fill'] or n['b'] in chords):
                 m = LANES - n['lane'] - n['w']
                 in_hold = any(h['end'] and h['b'] - 0.1 <= n['b'] <= h['end'] + 0.25 and h is not n for h in notes)
                 if abs(m - n['lane']) >= n['w'] and not in_hold:
