@@ -96,6 +96,39 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
 }
 
 
+def build_exact(score, warp, audio_end, level):
+    """One note per right-hand onset at its exact MIDI time (no grid, no thinning, no extra notes).
+    Chords become one wider note; notes held >= 1 beat become holds; the last note of a phrase is a flick."""
+    beat_s = lambda b: score.beat_to_s(b)
+    groups = {}
+    for n in score:
+        if n['tr'] == 1:
+            groups.setdefault(round(n['bs'], 3), []).append(n)
+    onsets = sorted(groups)
+    ps = sorted(max(x['p'] for x in groups[b]) for b in onsets)
+    lo, hi = ps[len(ps) // 20], ps[len(ps) * 19 // 20]
+    out, last_col = [], 4
+    for i, b in enumerate(onsets):
+        g = groups[b]
+        top = max(x['p'] for x in g)
+        w = 3 if len(g) == 1 else min(6, 3 + len(g) - 1)          # chords read as wider notes
+        col = round((min(hi, max(lo, top)) - lo) / max(1, hi - lo) * (LANES - w))
+        nxt = onsets[i + 1] if i + 1 < len(onsets) else b + 8
+        gap = nxt - b
+        reach = 2 if gap <= 0.26 else 4 if gap <= 0.51 else LANES
+        col = max(0, min(LANES - w, max(last_col - reach, min(last_col + reach, col))))
+        dur = max(x['be'] for x in g) - b
+        note = dict(t=round(min(warp(beat_s(b)), audio_end), 3), lane=col, w=w, type='tap')
+        if dur >= 1 and gap >= dur - 0.05:
+            note['type'] = 'hold'
+            note['end'] = round(min(warp(beat_s(b + min(dur, gap) - 0.25)), audio_end), 3)
+        elif gap >= 1 and dur < 1:
+            note['type'] = 'flick'                                  # phrase end before a rest
+        out.append(note)
+        last_col = col
+    return out
+
+
 def build(score, warp, beat, cfg, audio_end):
     q = lambda b: round(b * 4) / 4                 # quantize to 16ths (in beats, tempo-map aware)
     mel = {}
@@ -187,6 +220,14 @@ def main():
     beat = 60 / bpm
     warp, anchors, groups = time_warp(score, raw)
     print(f'bpm {bpm:.2f}, {anchors}/{groups} onset groups anchored, audio span {warp(0):.2f}s → {warp(score[-1]["s"]):.2f}s')
+    if '--exact' in sys.argv:                          # follow the score note-for-note
+        name = sys.argv[sys.argv.index('--exact') + 1]
+        notes = build_exact(score, warp, max(n['e'] for n in raw) - 0.1, DIFFS[name]['level'])
+        with open(f'{out_dir}/{name}.json', 'w') as f:
+            json.dump(dict(lanes=LANES, bpm=round(bpm, 2), offset=0, notes=notes), f, separators=(',', ':'))
+        kinds = {k: sum(n['type'] == k for n in notes) for k in ('tap', 'hold', 'flick')}
+        print(f'{name} (exact) {len(notes)} notes {kinds}  last {max(n.get("end", n["t"]) for n in notes):.2f}s')
+        return
     only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else list(DIFFS)
     for name, cfg in DIFFS.items():
         if name not in only:
