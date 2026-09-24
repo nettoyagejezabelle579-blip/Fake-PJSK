@@ -278,7 +278,7 @@ const Render = (() => {
     drawStage(t);
 
     // Highway: translucent, running from the bottom edge to the vanishing point
-    const near = (1 - (H - G.hy) / (G.jy - G.hy)) / SLOPE - 0.01, far = 1.05, farL = 1 / SLOPE;
+    const near = (1 - (H - G.hy) / (G.jy - G.hy)) / SLOPE - 0.01, far = 1.2, farL = 1 / SLOPE; // notes appear near the top (scale 0.04)
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
     hg.addColorStop(0, 'rgba(10,6,30,0.78)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.74)'); hg.addColorStop(1, 'rgba(10,6,30,0.7)');
