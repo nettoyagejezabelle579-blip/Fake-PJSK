@@ -55,7 +55,8 @@ const Menu = (() => {
 
   function startGame() {
     stopPreview();
-    location.search = new URLSearchParams({ song: sel.id, diff }).toString();
+    root.remove();
+    Game.play(sel.id, diff);
   }
 
   function renderDetail() {

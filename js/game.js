@@ -107,7 +107,7 @@ const Game = (() => {
 
   const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const q = new URLSearchParams(location.search);
-  const songId = q.get('song') || 'demo';
+  let songId = q.get('song') || 'demo';
   let songTitle = songId, songMeta = null;
   let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
 
@@ -144,7 +144,7 @@ const Game = (() => {
   songsBtn.textContent = 'SONG SELECT';
   songsBtn.hidden = true;
   btn.after(songsBtn);
-  songsBtn.addEventListener('click', () => { location.search = ''; });
+  songsBtn.addEventListener('click', toSongSelect);
 
   // Song over: stop judging, save best/clear, then the renderer plays the ending (clear banner → rank)
   // and frame() hands off to the result screen.
@@ -165,7 +165,7 @@ const Game = (() => {
     result = {
       id: songId, meta: songMeta || { title: songTitle }, diff, score: state.score, best, ratio, rank,
       counts: { ...state.counts }, maxCombo: state.maxCombo,
-      onRetry: start, onNext: () => { location.search = ''; },
+      onRetry: start, onNext: toSongSelect,
     };
     state.ending = { at: t };
   }
@@ -252,9 +252,24 @@ const Game = (() => {
   window.addEventListener('keydown', (e) => { if (e.code === 'Escape') (paused ? resume() : pause()); });
 
   btn.addEventListener('click', () => (paused ? resume() : start()));
-  showSong();
+  // Deep link (?song=) keeps the START overlay: audio needs a tap on this page first.
+  if (q.get('song')) showSong();
+
+  // Song select → play without a page load, so the Decide tap itself unlocks audio.
+  async function play(id, d) {
+    songId = id;
+    diff = DIFFS.includes(d) ? d : 'normal';
+    const unlock = AudioEngine.init(); // must run inside the tap
+    overlay.classList.add('hidden');
+    history.replaceState(null, '', `?${new URLSearchParams({ song: id, diff })}`);
+    await unlock;
+    await showSong();
+    await start();
+  }
+
+  function toSongSelect() { location.assign(location.pathname); }
   Render.draw(-10, state);
   requestAnimationFrame(frame);
 
-  return { state, WINDOWS };
+  return { state, WINDOWS, play };
 })();
