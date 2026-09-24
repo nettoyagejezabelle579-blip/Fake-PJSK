@@ -7,9 +7,9 @@ const Render = (() => {
   const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], miss: ['#f2f2f7', '#a8a6b8'] };
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
   const NOTE_PAL = {
-    tap: { top: '#ffffff', mid: '#dcd6ff', side: '#9fa8ff', edge: '#b3a4ff', cap: '#6474ff' },
-    hold: { top: '#d9ffe9', mid: '#7cf0b0', side: '#2fbf7f', edge: '#4fe39a', cap: '#12a868' },
-    flick: { top: '#fff0f7', mid: '#ffc2dd', side: '#ff6fa6', edge: '#ff8fbd', cap: '#ff3d86' },
+    tap: { top: '#ffffff', mid: '#8fdcff', side: '#2f7fd8', edge: '#3fb4ff', cap: '#1f5fd0', glow: '#5fd0ff' },
+    hold: { top: '#e8fff2', mid: '#45e59a', side: '#12935c', edge: '#2ed889', cap: '#0b8a52', glow: '#4dffa6' },
+    flick: { top: '#fff2f8', mid: '#ff7fb5', side: '#c9245f', edge: '#ff4f94', cap: '#d8175e', glow: '#ff5fa0' },
   };
   // Score rank thresholds (score / max score); shared with the results screen.
   const RANKS = [['S', 0.9], ['A', 0.75], ['B', 0.6], ['C', 0.45], ['D', 0]];
@@ -226,7 +226,11 @@ const Render = (() => {
     g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(e.x, e.y); g.closePath();
     const fg = g.createLinearGradient(0, e.y, 0, a.y);
     fg.addColorStop(0, P.top); fg.addColorStop(1, P.mid);
+    g.shadowColor = P.glow; g.shadowBlur = 12 * a.s;
     g.fillStyle = fg; g.fill();
+    g.shadowBlur = 0;
+    g.lineJoin = 'round';
+    g.lineWidth = Math.max(2, 5 * a.s); g.strokeStyle = 'rgba(10,8,40,0.9)'; g.stroke(); // dark rim: readable on any background
     g.lineWidth = Math.max(1, 2.5 * a.s); g.strokeStyle = P.edge; g.stroke();
     const cw = (u1 - u0) * 0.07;
     g.fillStyle = P.cap;
@@ -262,7 +266,7 @@ const Render = (() => {
     const near = (1 / ((H - G.hy) / (G.jy - G.hy)) - 1) / PERSP - 0.01, far = 1.05, farL = 8;
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
-    hg.addColorStop(0, 'rgba(10,6,30,0.6)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.4)'); hg.addColorStop(1, 'rgba(10,6,30,0.15)');
+    hg.addColorStop(0, 'rgba(10,6,30,0.78)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.74)'); hg.addColorStop(1, 'rgba(10,6,30,0.7)');
     g.fillStyle = hg; g.fill();
 
     // Pressed-lane glow (fades out on release)
