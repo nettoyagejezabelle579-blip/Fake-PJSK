@@ -43,8 +43,14 @@ def read_notes(path):
                 on[x.note] = (t, x.velocity)
             elif x.type in ('note_off', 'note_on') and x.note in on:
                 s0, v = on.pop(x.note)
-                out.append(dict(s=to_s(s0), e=to_s(t), p=x.note, v=v, tr=i))
-    return sorted(out, key=lambda n: (n['s'], n['p']))
+                out.append(dict(s=to_s(s0), e=to_s(t), bs=s0 / m.ticks_per_beat, be=t / m.ticks_per_beat, p=x.note, v=v, tr=i))
+    out = NoteList(sorted(out, key=lambda n: (n['s'], n['p'])))
+    out.beat_to_s = lambda b: to_s(b * m.ticks_per_beat)   # follows the file's tempo map
+    return out
+
+
+class NoteList(list):
+    pass
 
 
 def onset_groups(notes, tol=0.03):
@@ -58,45 +64,25 @@ def onset_groups(notes, tol=0.03):
 
 
 def time_warp(score, raw):
-    """DTW over onset groups (pitch-set distance) → monotonic score-time → audio-time map."""
-    A, B = onset_groups(score), onset_groups(raw)
-    n, m, INF = len(A), len(B), float('inf')
-    band = max(60, abs(n - m) + 40)
-    D = [[INF] * (m + 1) for _ in range(n + 1)]
-    D[0][0] = 0
-    for i in range(1, n + 1):
-        c = i * m // n
-        for j in range(max(1, c - band), min(m, c + band) + 1):
-            a, b = A[i - 1][1], B[j - 1][1]
-            cost = 1 - len(a & b) / len(a | b)
-            D[i][j] = cost + min(D[i - 1][j - 1], D[i - 1][j], D[i][j - 1])
-    i, j, pairs = n, m, []
-    while i > 0 and j > 0:
-        if A[i - 1][1] == B[j - 1][1]:
-            pairs.append((A[i - 1][0], B[j - 1][0]))
-        k = min((D[i - 1][j - 1], 0), (D[i - 1][j], 1), (D[i][j - 1], 2))[1]
-        i, j = (i - 1, j - 1) if k == 0 else (i - 1, j) if k == 1 else (i, j - 1)
-    pairs.sort()
-    # robust smoothing: median audio-minus-score offset over a sliding window of anchors
-    xs = [p[0] for p in pairs]
-    offs = [p[1] - p[0] for p in pairs]
-    sm = []
-    for k in range(len(pairs)):
-        w = sorted(offs[max(0, k - 8):k + 9])
-        sm.append(w[len(w) // 2])
-    ys = [x + o for x, o in zip(xs, sm)]
-    for k in range(1, len(ys)):  # keep monotonic
-        ys[k] = max(ys[k], ys[k - 1] + 1e-3)
-
-    def warp(t):
-        k = bisect.bisect_left(xs, t)
-        if k <= 0:
-            return t + (ys[0] - xs[0])
-        if k >= len(xs):
-            return t + (ys[-1] - xs[-1])
-        x0, x1, y0, y1 = xs[k - 1], xs[k], ys[k - 1], ys[k]
-        return y0 + (y1 - y0) * (t - x0) / (x1 - x0) if x1 > x0 else y0
-    return warp, len(pairs), len(A)
+    """Robust linear score-time → audio-time map: match each melody onset to the nearest raw onset,
+    refit, tighten the tolerance, repeat (a free-form warp drifted on long songs)."""
+    ro = sorted(n['s'] for n in raw if n['tr'] == 1) or sorted(n['s'] for n in raw)
+    so = sorted({round(n['s'], 3) for n in score if n['tr'] == 1})
+    a = ro[0] - so[0]
+    b = 1.0
+    for it in range(10):
+        tol = 0.25 if it < 3 else 0.08
+        xs, ys = [], []
+        for x in so:
+            p = a + b * x
+            j = bisect.bisect_left(ro, p)
+            c = min((ro[k] for k in (j - 1, j) if 0 <= k < len(ro)), key=lambda r: abs(r - p))
+            if abs(c - p) < tol:
+                xs.append(x); ys.append(c)
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+        a = my - b * mx
+    return (lambda t: a + b * t), len(xs), len(so)
 
 
 # Per difficulty: min gap between melody notes (beats), note width, hold threshold (beats),
@@ -111,17 +97,17 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
 
 
 def build(score, warp, beat, cfg, audio_end):
-    q = lambda t: round(t / beat * 4) / 4          # quantize to 16ths (in beats)
+    q = lambda b: round(b * 4) / 4                 # quantize to 16ths (in beats, tempo-map aware)
     mel = {}
     for n in score:                                  # melody = top voice of track 1
         if n['tr'] != 1:
             continue
-        b = q(n['s'])
+        b = q(n['bs'])
         if b not in mel or n['p'] > mel[b]['p']:
-            mel[b] = dict(b=b, p=n['p'], dur=max(0.25, q(n['e']) - b), v=n['v'])
+            mel[b] = dict(b=b, p=n['p'], dur=max(0.25, q(n['be']) - b), v=n['v'])
     mel = [mel[b] for b in sorted(mel)]
-    bass = sorted({q(n['s']) for n in score if n['tr'] == 2})
-    chords = {b for b in {q(n['s']) for n in score if n['tr'] == 1} if sum(1 for n in score if n['tr'] == 1 and q(n['s']) == b) >= 2}
+    bass = sorted({q(n['bs']) for n in score if n['tr'] == 2})
+    chords = {b for b in {q(n['bs']) for n in score if n['tr'] == 1} if sum(1 for n in score if n['tr'] == 1 and q(n['bs']) == b) >= 2}
     phrase_end = {n['b'] for i, n in enumerate(mel) if i + 1 == len(mel) or mel[i + 1]['b'] - (n['b'] + n['dur']) >= 1}
 
     # thin to the difficulty's minimum gap, preferring on-beat and louder notes
@@ -181,7 +167,7 @@ def build(score, warp, beat, cfg, audio_end):
             if b % cfg['fill'] == 0 and b < last_b and not busy(b) and not any(abs(x['b'] - b) < 0.2 for x in extra):
                 extra.append(dict(b=b, lane=0 if int(b / cfg['fill']) % 2 else LANES - w, w=w, type='tap', end=None))
     notes = sorted(notes + extra, key=lambda n: (n['b'], n['lane']))
-    to_t = lambda b: round(min(warp(b * beat), audio_end), 3)   # nothing after the last sound
+    to_t = lambda b: round(min(warp(score.beat_to_s(b)), audio_end), 3)   # nothing after the last sound
     out = []
     for n in notes:
         o = dict(t=to_t(n['b']), lane=n['lane'], w=n['w'], type=n['type'])
