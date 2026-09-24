@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate 12-lane Project Sekai-style charts (easy..master) from a transcription.
 
-Usage: python3 tools/midi2chart.py SCORE.mid RAW.mid OUT_DIR [--bpm 111]
+Usage: python3 tools/midi2chart.py SCORE.mid RAW.mid OUT_DIR [--bpm 111] [--only expert,master]
 
 SCORE.mid: quantized score MIDI (steady tempo, melody in track 1, bass in track 2).
 RAW.mid:   raw transcription of the audio (its note times follow the audio file).
@@ -201,7 +201,10 @@ def main():
     beat = 60 / bpm
     warp, anchors, groups = time_warp(score, raw)
     print(f'bpm {bpm:.2f}, {anchors}/{groups} onset groups anchored, audio span {warp(0):.2f}s → {warp(score[-1]["s"]):.2f}s')
+    only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else list(DIFFS)
     for name, cfg in DIFFS.items():
+        if name not in only:
+            continue
         notes = build(score, warp, beat, cfg, max(n['e'] for n in raw) - 0.1)
         chart = dict(lanes=LANES, bpm=round(bpm, 2), offset=0, notes=notes)
         with open(f'{out_dir}/{name}.json', 'w') as f:
