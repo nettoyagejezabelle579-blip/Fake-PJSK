@@ -134,7 +134,7 @@ const Menu = (() => {
       b.append(el('span', 'tile-lv', levels[diff] ?? '–'), clear);
       const tag = m.tag || m.category;
       if (tag) b.append(el('span', 'tile-tag', tag));
-      b.addEventListener('click', () => (sel === s ? startGame() : select(s)));
+      b.addEventListener('click', () => { if (sel !== s) select(s); }); // only Decide starts the live
       return b;
     }));
     if (!v.length) list.append(el('p', 'menu-empty', 'No songs found'));
