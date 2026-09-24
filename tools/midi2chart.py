@@ -106,7 +106,7 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
     'normal': dict(gap=0.5,  w=3, hold=1.0, flick=True,  phrase=16, doubles=0, fill=0,   level=12),
     'hard':   dict(gap=0.25, w=3, hold=1.0, flick=True,  phrase=8,  doubles=2, fill=0,   level=19),
     'expert': dict(gap=0.25, w=3, hold=1.0, flick=True,  phrase=8,  doubles=0.5, fill=0.5, chord_only=True, level=24),
-    'master': dict(gap=0.25, w=2, hold=1.0, flick=True,  phrase=4,  doubles=1, fill=0.5, level=28),
+    'master': dict(gap=0.25, w=2, hold=1.0, flick=True,  phrase=4,  doubles=0.25, fill=0.25, level=28),
 }
 
 
