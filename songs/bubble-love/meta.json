@@ -1,0 +1,16 @@
+{
+  "title": "バブルラブ",
+  "artist": "リンゼ・シルエスカ",
+  "vocals": "リンゼ・シルエスカ (CV. 福緒唯)",
+  "audio": "song.mp3",
+  "bpm": 111,
+  "preview": 60,
+  "difficulties": {
+    "easy": 6,
+    "normal": 12,
+    "hard": 19,
+    "expert": 24,
+    "master": 28
+  },
+  "cover": "cover.jpg"
+}

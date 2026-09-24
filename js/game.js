@@ -3,30 +3,35 @@ const Game = (() => {
   // Timing windows (± seconds). Generous by design.
   const WINDOWS = { perfect: 0.060, great: 0.110, good: 0.160 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
-  const LANES = 4;
+  const LANES = 12;     // Project Sekai-style columns
+  const SLACK = 1;      // a press hits notes within this many columns of it (generous for touch)
   const LIFE_MAX = 1000, MISS_DAMAGE = 60; // no fail: life only shows how the run went
 
   const state = {
-    notes: [], // { time, lane, state: 0 pending | 1 hit | 2 missed, judge }
+    notes: [], // { time, lane (first column), w (columns), state: 0 pending | 1 hit | 2 missed, judge }
     running: false,
     duration: 0,
     score: 0, combo: 0, maxCombo: 0, life: LIFE_MAX,
     lastGain: null,  // { v, time } for the +N next to the score
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
-    effects: [],     // { lane, judge, time }
+    effects: [],     // { lane, w, judge, time }
     pressed: new Array(LANES).fill(0),
   };
 
-  // Chart JSON: { offset, bpm, notes: [{ t, lane, type }] }; note time = offset + t (seconds).
+  // Chart JSON: { offset, bpm, lanes?, notes: [{ t, lane, w?, type }] }; note time = offset + t (seconds).
+  // lanes: 12 → lane/w are columns 0-11 (w defaults to 3); older 4-lane charts are scaled ×3.
   function loadChart(chart) {
     const off = chart.offset || 0;
     // Hold {t, end} → head note + 'tail' note (judged on release).
-    const notes = [];
+    const notes = [], k = chart.lanes === LANES ? 1 : LANES / 4;
     for (const n of chart.notes) {
-      const h = { time: off + n.t, lane: n.lane, type: n.type || 'tap', state: 0, judge: null };
+      // whole columns only: a note never straddles half of one lane and half of the next
+      const w = Math.max(1, Math.min(LANES, Math.round(n.w ? n.w * k : 3)));
+      const lane = Math.max(0, Math.min(LANES - w, Math.round((+n.lane || 0) * k)));
+      const h = { time: off + n.t, lane, w, type: n.type || 'tap', state: 0, judge: null };
       notes.push(h);
-      if (h.type === 'hold') notes.push(h.tail = { time: off + n.end, lane: n.lane, type: 'tail', head: h, state: 0, judge: null });
+      if (h.type === 'hold') notes.push(h.tail = { time: off + n.end, lane, w, type: 'tail', head: h, state: 0, judge: null });
     }
     state.notes = notes.sort((a, b) => a.time - b.time);
     state.score = state.combo = state.maxCombo = 0;
@@ -56,15 +61,19 @@ const Game = (() => {
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     state.score += POINTS[judge];
     state.lastGain = { v: POINTS[judge], time: t };
-    state.effects.push({ lane: n.lane, judge, time: t });
+    state.effects.push({ lane: n.lane, w: n.w, judge, time: t });
   }
 
   const grade = (a) => a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : a <= WINDOWS.good ? 'good' : 'miss';
 
-  // t: song time (audio clock) at which the press (or flick, if flick) happened.
-  function hit(lane, t, flick = false) {
+  // Does a press over columns c0..c1 reach note n (its span widened by SLACK)?
+  const covers = (n, c0, c1) => n.lane <= c1 + SLACK && n.lane + n.w - 1 >= c0 - SLACK;
+  const touched = (n) => state.pressed.some((p, c) => p > 0 && covers(n, c, c));
+
+  // c0..c1: pressed columns; t: song time (audio clock) at which the press (or flick, if flick) happened.
+  function hit(c0, c1, t, flick = false) {
     for (const n of state.notes) {
-      if (n.state !== 0 || n.lane !== lane || n.type === 'tail' || (n.type === 'flick') !== flick) continue;
+      if (n.state !== 0 || n.type === 'tail' || !covers(n, c0, c1) || (n.type === 'flick') !== flick) continue;
       const dt = t - n.time;
       if (dt > WINDOWS.good) continue;  // too late; update() will miss it
       if (dt < -WINDOWS.good) return;   // earliest candidate is still too far away
@@ -74,10 +83,10 @@ const Game = (() => {
     }
   }
 
-  // Lane fully released at song time t: judge any held hold's tail (early release).
-  function release(lane, t) {
+  // Some columns released at song time t: judge the tail of any held hold no longer touched (early release).
+  function release(t) {
     for (const n of state.notes) {
-      if (n.type !== 'tail' || n.state !== 0 || n.lane !== lane || !n.head.held) continue;
+      if (n.type !== 'tail' || n.state !== 0 || !n.head.held || touched(n.head)) continue;
       n.head.held = false;
       record(n, grade(Math.abs(t - n.time)), t, t - n.time);
     }
@@ -107,7 +116,7 @@ const Game = (() => {
 
   const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const q = new URLSearchParams(location.search);
-  const songId = q.get('song') || 'demo';
+  let songId = q.get('song') || 'demo';
   let songTitle = songId, songMeta = null;
   let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
 
@@ -144,7 +153,7 @@ const Game = (() => {
   songsBtn.textContent = 'SONG SELECT';
   songsBtn.hidden = true;
   btn.after(songsBtn);
-  songsBtn.addEventListener('click', () => { location.search = ''; });
+  songsBtn.addEventListener('click', toSongSelect);
 
   // Song over: stop judging, save best/clear, then the renderer plays the ending (clear banner → rank)
   // and frame() hands off to the result screen.
@@ -165,7 +174,7 @@ const Game = (() => {
     result = {
       id: songId, meta: songMeta || { title: songTitle }, diff, score: state.score, best, ratio, rank,
       counts: { ...state.counts }, maxCombo: state.maxCombo,
-      onRetry: start, onNext: () => { location.search = ''; },
+      onRetry: start, onNext: toSongSelect,
     };
     state.ending = { at: t };
   }
@@ -187,7 +196,9 @@ const Game = (() => {
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
     songsBtn.hidden = true;
-    AudioEngine.play(buffer);
+    // lead-in long enough for the first note to scroll the whole highway, even if it is near the song start
+    const first = state.notes.length ? state.notes[0].time : Infinity;
+    AudioEngine.play(buffer, Math.max(0.6, Settings.noteTime() - first + 0.5));
     state.running = true;
     paused = false;
     document.body.classList.add('playing');
@@ -209,15 +220,15 @@ const Game = (() => {
   Render.init(document.getElementById('stage'));
   Input.init(
     document.getElementById('stage'),
-    (lane, stamp) => {
-      state.pressed[lane]++;
-      if (state.running) hit(lane, AudioEngine.songTimeAt(stamp));
+    (c0, c1, stamp) => {
+      for (let c = c0; c <= c1; c++) state.pressed[c]++;
+      if (state.running) hit(c0, c1, AudioEngine.songTimeAt(stamp));
     },
-    (lane, stamp) => {
-      state.pressed[lane] = Math.max(0, state.pressed[lane] - 1);
-      if (state.running && !state.pressed[lane]) release(lane, AudioEngine.songTimeAt(stamp));
+    (c0, c1, stamp) => {
+      for (let c = c0; c <= c1; c++) state.pressed[c] = Math.max(0, state.pressed[c] - 1);
+      if (state.running) release(AudioEngine.songTimeAt(stamp));
     },
-    (lane, stamp) => { if (state.running) hit(lane, AudioEngine.songTimeAt(stamp), true); },
+    (c0, c1, stamp) => { if (state.running) hit(c0, c1, AudioEngine.songTimeAt(stamp), true); },
   );
   // Pause: suspends the AudioContext (the song clock), shows the overlay with Resume + Song Select.
   let paused = false;
@@ -252,9 +263,24 @@ const Game = (() => {
   window.addEventListener('keydown', (e) => { if (e.code === 'Escape') (paused ? resume() : pause()); });
 
   btn.addEventListener('click', () => (paused ? resume() : start()));
-  showSong();
+  // Deep link (?song=) keeps the START overlay: audio needs a tap on this page first.
+  if (q.get('song')) showSong();
+
+  // Song select → play without a page load, so the Decide tap itself unlocks audio.
+  async function play(id, d) {
+    songId = id;
+    diff = DIFFS.includes(d) ? d : 'normal';
+    const unlock = AudioEngine.init(); // must run inside the tap
+    overlay.classList.add('hidden');
+    history.replaceState(null, '', `?${new URLSearchParams({ song: id, diff })}`);
+    await unlock;
+    await showSong();
+    await start();
+  }
+
+  function toSongSelect() { location.assign(location.pathname); }
   Render.draw(-10, state);
   requestAnimationFrame(frame);
 
-  return { state, WINDOWS };
+  return { state, WINDOWS, play };
 })();

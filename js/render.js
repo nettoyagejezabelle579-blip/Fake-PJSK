@@ -1,6 +1,6 @@
 // Canvas drawing: cover-window stage, perspective 4-lane highway, slab notes, judgment bar, hit effects, score/life HUD.
 const Render = (() => {
-  const LANES = 4;
+  const LANES = 12;      // Project Sekai-style columns; notes span n.w columns
   const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
   const NOTE_DEPTH = 0.0065;
   const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
@@ -24,7 +24,7 @@ const Render = (() => {
   const rmq = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let reduced = !!(rmq && rmq.matches);
   if (rmq) (rmq.addEventListener ? rmq.addEventListener('change', (e) => { reduced = e.matches; }) : rmq.addListener((e) => { reduced = e.matches; }));
-  const wasPressed = [0, 0, 0, 0], releaseAt = [-1e9, -1e9, -1e9, -1e9];
+  const wasPressed = new Array(LANES).fill(0), releaseAt = new Array(LANES).fill(-1e9);
   let lastCombo = 0, comboAt = -1e9, lastNotes = null;
   const END_A = 2.1, END_B = 2.5; // ending: clear banner, then rank screen (seconds)
   const rnd = (a, b) => { const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -199,6 +199,7 @@ const Render = (() => {
   }
 
   const laneU = (lane) => -1 + (2 * lane) / LANES;
+  const midU = (n) => laneU(n.lane + (n.w || 1) / 2);
 
   function quad(G, d0, d1, u0, u1) {
     const a = proj(G, d0, u0), b = proj(G, d0, u1), c = proj(G, d1, u1), e = proj(G, d1, u0);
@@ -214,9 +215,9 @@ const Render = (() => {
   }
 
   // Slab-style note: light top face, darker front edge, coloured end caps.
-  function drawNote(G, d, lane, type, alpha) {
+  function drawNote(G, d, lane, w, type, alpha) {
     const P = NOTE_PAL[type] || NOTE_PAL.tap;
-    const u0 = laneU(lane) + 0.025, u1 = laneU(lane + 1) - 0.025;
+    const u0 = laneU(lane) + 0.012, u1 = laneU(lane + w) - 0.012;
     const a = proj(G, d - NOTE_DEPTH, u0), b = proj(G, d - NOTE_DEPTH, u1), c = proj(G, d + NOTE_DEPTH, u1), e = proj(G, d + NOTE_DEPTH, u0);
     const th = 7 * a.s;
     g.globalAlpha = alpha;
@@ -232,8 +233,8 @@ const Render = (() => {
     quad(G, d - NOTE_DEPTH * 0.45, d + NOTE_DEPTH * 0.45, u0 + cw * 0.5, u0 + cw * 1.5); g.fill();
     quad(G, d - NOTE_DEPTH * 0.45, d + NOTE_DEPTH * 0.45, u1 - cw * 1.5, u1 - cw * 0.5); g.fill();
     if (type === 'flick') {
-      const m = proj(G, d + NOTE_DEPTH, (u0 + u1) / 2), w = (G.half / LANES) * 0.45 * m.s;
-      g.beginPath(); g.moveTo(m.x - w, m.y - 3 * m.s); g.lineTo(m.x, m.y - w * 1.1); g.lineTo(m.x + w, m.y - 3 * m.s); g.closePath();
+      const m = proj(G, d + NOTE_DEPTH, (u0 + u1) / 2), aw = (u1 - u0) * G.half * 0.22 * m.s;
+      g.beginPath(); g.moveTo(m.x - aw, m.y - 3 * m.s); g.lineTo(m.x, m.y - aw * 1.1); g.lineTo(m.x + aw, m.y - 3 * m.s); g.closePath();
       g.fillStyle = P.cap; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, 2 * m.s); g.stroke();
     }
     g.globalAlpha = 1;
@@ -259,7 +260,6 @@ const Render = (() => {
 
     // Highway: translucent, running from the bottom edge to the vanishing point
     const near = (1 / ((H - G.hy) / (G.jy - G.hy)) - 1) / PERSP - 0.01, far = 1.05, farL = 8;
-    const unit = G.half / LANES;
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
     hg.addColorStop(0, 'rgba(10,6,30,0.6)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.4)'); hg.addColorStop(1, 'rgba(10,6,30,0.15)');
@@ -282,7 +282,7 @@ const Render = (() => {
     }
 
     // Lane lines: bright edges, thin dividers
-    for (let l = 0; l <= LANES; l++) {
+    for (let l = 0; l <= LANES; l += 2) {
       const a = proj(G, near, laneU(l)), b = proj(G, farL, laneU(l));
       g.strokeStyle = l === 0 || l === LANES ? 'rgba(255,255,255,0.75)' : l === LANES / 2 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.35)';
       g.lineWidth = l === 0 || l === LANES ? 2 : 1.3;
@@ -295,7 +295,7 @@ const Render = (() => {
     g.fillStyle = 'rgba(8,4,22,0.62)'; g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1.2;
     for (let i = 1; i < 12; i++) {
-      const u = -ju + (2 * ju * i) / 12, a = proj(G, j0, u), b = proj(G, j1, u);
+      const u = laneU(i), a = proj(G, j0, u), b = proj(G, j1, u);
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     }
     quad(G, j0, j1, -ju, ju);
@@ -314,10 +314,10 @@ const Render = (() => {
       if (n.type !== 'hold' || n.tail.state !== 0 || n.state === 2) continue;
       const d0 = n.state === 1 ? 0 : Math.max(near, (n.time - t) / LOOKAHEAD), d1 = Math.min(far, (n.tail.time - t) / LOOKAHEAD);
       if (d1 <= d0) continue;
-      quad(G, d0, d1, laneU(n.lane) + 0.07, laneU(n.lane + 1) - 0.07);
+      quad(G, d0, d1, laneU(n.lane) + 0.035, laneU(n.lane + n.w) - 0.035);
       g.fillStyle = n.held ? 'rgba(110,255,190,0.5)' : 'rgba(110,255,190,0.3)';
       g.fill();
-      if (d1 < far) drawNote(G, d1, n.lane, 'hold', 0.85);
+      if (d1 < far) drawNote(G, d1, n.lane, n.w, 'hold', 0.85);
     }
     let prev = null;
     g.strokeStyle = 'rgba(255,255,255,0.9)';
@@ -326,7 +326,7 @@ const Render = (() => {
       const d = (n.time - t) / LOOKAHEAD;
       if (d > far) break;
       if (prev && Math.abs(prev.time - n.time) < 0.002 && d > near) {
-        const a = proj(G, d, (laneU(prev.lane) + laneU(prev.lane + 1)) / 2), b = proj(G, d, (laneU(n.lane) + laneU(n.lane + 1)) / 2);
+        const a = proj(G, d, midU(prev)), b = proj(G, d, midU(n));
         g.lineWidth = Math.max(1, 3 * a.s);
         g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
       }
@@ -337,7 +337,7 @@ const Render = (() => {
       if (n.type === 'tail' || n.state !== 0) continue;
       const d = (n.time - t) / LOOKAHEAD;
       if (d > far || d < near - NOTE_DEPTH) continue;
-      drawNote(G, d, n.lane, n.type, Math.min(1, (far - d) * 6));
+      drawNote(G, d, n.lane, n.w, n.type, Math.min(1, (far - d) * 6));
     }
 
     // Held holds: glowing block sitting on the judgment bar
@@ -345,7 +345,7 @@ const Render = (() => {
     for (const n of s.notes) {
       if (n.type !== 'hold' || !n.held) continue;
       const pulse = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 20);
-      const u0 = laneU(n.lane) + 0.02, u1 = laneU(n.lane + 1) - 0.02;
+      const u0 = laneU(n.lane) + 0.01, u1 = laneU(n.lane + n.w) - 0.01;
       g.globalAlpha = 0.8 * pulse;
       quad(G, 0, 3, u0, u1);
       const c0 = proj(G, 0, 0).y, c1 = proj(G, 3, 0).y;
@@ -355,11 +355,11 @@ const Render = (() => {
       g.globalAlpha = 1;
       g.globalCompositeOperation = 'source-over';
       g.shadowColor = '#6dffb0'; g.shadowBlur = 18;
-      drawNote(G, 0, n.lane, 'hold', 1);
+      drawNote(G, 0, n.lane, n.w, 'hold', 1);
       g.shadowBlur = 0;
       g.globalCompositeOperation = 'lighter';
       if (!reduced) {
-        const c = proj(G, 0, (u0 + u1) / 2), unit = G.half / LANES, k = (t * 3) % 1;
+        const c = proj(G, 0, (u0 + u1) / 2), unit = G.half * n.w / LANES, k = (t * 3) % 1;
         g.strokeStyle = '#ffffff'; g.globalAlpha = 0.8 * (1 - k); g.lineWidth = 2;
         diamond(c.x, c.y, unit * (0.3 + 0.6 * k), 0.45); g.stroke();
         g.globalAlpha = 1;
@@ -372,7 +372,7 @@ const Render = (() => {
       const age = t - f.time;
       if (age < 0 || age > 0.45) continue;
       const k = age / 0.45, col = FX_COLORS[f.judge];
-      const c = proj(G, 0, (laneU(f.lane) + laneU(f.lane + 1)) / 2);
+      const c = proj(G, 0, midU(f)), unit = G.half * (f.w || 3) / LANES; // effect size follows note width
       g.globalAlpha = 0.6 * (1 - k);
       const bh = H * 0.5, bw0 = unit * 0.55, bw1 = unit * 0.95;
       const lg = g.createLinearGradient(0, c.y, 0, c.y - bh);
