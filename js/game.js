@@ -26,7 +26,9 @@ const Game = (() => {
     // Hold {t, end} → head note + 'tail' note (judged on release).
     const notes = [], k = chart.lanes === LANES ? 1 : LANES / 4;
     for (const n of chart.notes) {
-      const w = Math.min(LANES, n.w ? n.w * k : 3), lane = Math.max(0, Math.min(LANES - w, n.lane * k));
+      // whole columns only: a note never straddles half of one lane and half of the next
+      const w = Math.max(1, Math.min(LANES, Math.round(n.w ? n.w * k : 3)));
+      const lane = Math.max(0, Math.min(LANES - w, Math.round((+n.lane || 0) * k)));
       const h = { time: off + n.t, lane, w, type: n.type || 'tap', state: 0, judge: null };
       notes.push(h);
       if (h.type === 'hold') notes.push(h.tail = { time: off + n.end, lane, w, type: 'tail', head: h, state: 0, judge: null });
