@@ -196,7 +196,9 @@ const Game = (() => {
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
     songsBtn.hidden = true;
-    AudioEngine.play(buffer);
+    // lead-in long enough for the first note to scroll the whole highway, even if it is near the song start
+    const first = state.notes.length ? state.notes[0].time : Infinity;
+    AudioEngine.play(buffer, Math.max(0.6, Settings.noteTime() - first + 0.5));
     state.running = true;
     paused = false;
     document.body.classList.add('playing');
