@@ -265,8 +265,7 @@ const Menu = (() => {
 
   function buildMenuBtn() {
     const pop = el('dialog', 'menu-pop');
-    const fs = btn('menu-close', 'Fullscreen', null, () => document.getElementById('fs-btn').click());
-    pop.append(el('h2', null, 'Settings'), speedRow(), fs,
+    pop.append(el('h2', null, 'Settings'), speedRow(),
       btn('menu-close', 'Close', null, () => pop.close()));
     pop.addEventListener('click', (e) => { if (e.target === pop) pop.close(); });
     const b = btn('menu-burger', '☰', 'Settings', () => pop.show()); // not showModal: the top layer would escape the sideways page
@@ -382,10 +381,6 @@ async function enterLandscape() {
   try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* ignore */ }
   try { await screen.orientation.lock('landscape'); } catch (e) { /* ignore */ }
 }
-document.getElementById('fs-btn').addEventListener('click', async () => {
-  if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) { /* ignore */ } return; }
-  enterLandscape();
-});
 // Touch devices: any tap (pointerup counts as a user gesture) also goes fullscreen + landscape lock, silently.
 if (matchMedia('(pointer: coarse)').matches) {
   document.addEventListener('pointerup', () => { if (!document.fullscreenElement) enterLandscape(); }, true);
