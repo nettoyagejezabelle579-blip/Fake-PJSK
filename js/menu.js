@@ -269,7 +269,7 @@ const Menu = (() => {
     pop.append(el('h2', null, 'Settings'), speedRow(), fs,
       btn('menu-close', 'Close', null, () => pop.close()));
     pop.addEventListener('click', (e) => { if (e.target === pop) pop.close(); });
-    const b = btn('menu-burger', '☰', 'Settings', () => pop.showModal());
+    const b = btn('menu-burger', '☰', 'Settings', () => pop.show()); // not showModal: the top layer would escape the sideways page
     return [b, pop];
   }
 
@@ -386,8 +386,29 @@ document.getElementById('fs-btn').addEventListener('click', async () => {
   if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) { /* ignore */ } return; }
   enterLandscape();
 });
-// Touch devices: the first tap (pointerup counts as a user gesture) goes fullscreen + landscape,
-// so the game shows sideways even with the phone's auto-rotate off.
+// Touch devices: any tap (pointerup counts as a user gesture) also goes fullscreen + landscape lock, silently.
 if (matchMedia('(pointer: coarse)').matches) {
   document.addEventListener('pointerup', () => { if (!document.fullscreenElement) enterLandscape(); }, true);
 }
+
+// Always landscape: while the screen is upright, draw the game sideways (html.rot, see style.css).
+// The phone's tilt picks which edge is the top, so either sideways grip works.
+(() => {
+  let dir = 'cw';
+  const apply = () => {
+    const rot = innerHeight > innerWidth, cls = document.documentElement.classList;
+    const was = cls.contains('rot') + (cls.contains('ccw') ? 'ccw' : 'cw');
+    cls.toggle('rot', rot);
+    cls.toggle('cw', rot && dir === 'cw');
+    cls.toggle('ccw', rot && dir === 'ccw');
+    if (was !== cls.contains('rot') + (cls.contains('ccw') ? 'ccw' : 'cw')) dispatchEvent(new Event('resize')); // canvas re-measures
+  };
+  addEventListener('deviceorientation', (e) => {
+    // gamma < 0: left edge down (phone turned anticlockwise) → the right edge is the top
+    if (e.gamma == null || Math.abs(e.gamma) < 50) return;
+    const d = e.gamma < 0 ? 'cw' : 'ccw';
+    if (d !== dir) { dir = d; apply(); }
+  });
+  addEventListener('resize', apply);
+  apply();
+})();
