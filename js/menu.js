@@ -377,8 +377,17 @@ const Menu = (() => {
 })();
 
 // Fullscreen + landscape lock; both best-effort (unsupported on some browsers, e.g. iOS).
+// 'landscape' allows both sideways directions; browsers only honour the lock in fullscreen.
+async function enterLandscape() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* ignore */ }
+  try { await screen.orientation.lock('landscape'); } catch (e) { /* ignore */ }
+}
 document.getElementById('fs-btn').addEventListener('click', async () => {
   if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) { /* ignore */ } return; }
-  try { await document.documentElement.requestFullscreen(); } catch (e) { /* ignore */ }
-  try { await screen.orientation.lock('landscape'); } catch (e) { /* ignore */ }
+  enterLandscape();
 });
+// Touch devices: the first tap (pointerup counts as a user gesture) goes fullscreen + landscape,
+// so the game shows sideways even with the phone's auto-rotate off.
+if (matchMedia('(pointer: coarse)').matches) {
+  document.addEventListener('pointerup', () => { if (!document.fullscreenElement) enterLandscape(); }, true);
+}
