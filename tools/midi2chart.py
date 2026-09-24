@@ -64,25 +64,47 @@ def onset_groups(notes, tol=0.03):
 
 
 def time_warp(score, raw):
-    """Robust linear score-time → audio-time map: match each melody onset to the nearest raw onset,
-    refit, tighten the tolerance, repeat (a free-form warp drifted on long songs)."""
-    ro = sorted(n['s'] for n in raw if n['tr'] == 1) or sorted(n['s'] for n in raw)
-    so = sorted({round(n['s'], 3) for n in score if n['tr'] == 1})
-    a = ro[0] - so[0]
-    b = 1.0
-    for it in range(10):
-        tol = 0.25 if it < 3 else 0.08
-        xs, ys = [], []
-        for x in so:
-            p = a + b * x
-            j = bisect.bisect_left(ro, p)
-            c = min((ro[k] for k in (j - 1, j) if 0 <= k < len(ro)), key=lambda r: abs(r - p))
-            if abs(c - p) < tol:
-                xs.append(x); ys.append(c)
-        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-        b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-        a = my - b * mx
-    return (lambda t: a + b * t), len(xs), len(so)
+    """Score-time → audio-time map from pitch matching against the raw (audio-timed) transcription.
+    1) global tempo scale + offset maximising same-pitch-class onsets within 35 ms;
+    2) per-8-second-window offset correction (handles ritardandos / tempo changes that the
+       score states differently from the recording), smoothed and linearly interpolated."""
+    import numpy as np
+    byp = {}
+    for n in raw:
+        byp.setdefault(n['p'] % 12, []).append(n['s'])
+    byp = {p: np.array(sorted(v)) for p, v in byp.items()}
+    pts = [(n['s'], n['p'] % 12) for n in score if n['tr'] == 1]
+
+    def hits(a, b, sub, tol=0.035):
+        c = 0
+        for x, p in sub:
+            A = byp.get(p)
+            if A is None:
+                continue
+            t = a + b * x
+            j = np.searchsorted(A, t)
+            if (j < len(A) and abs(A[j] - t) < tol) or (j > 0 and abs(A[j - 1] - t) < tol):
+                c += 1
+        return c
+
+    first = min(v[0] for v in byp.values()) - pts[0][0]
+    coarse = pts[::3]
+    _, a, b = max((hits(a, b, coarse), a, b) for b in np.arange(0.97, 1.0301, 0.0005)
+                  for a in np.arange(first - 0.5, first + 0.5, 0.02))
+    _, a, b = max((hits(a2, b2, pts), a2, b2) for b2 in np.arange(b - 0.0005, b + 0.00051, 0.0001)
+                  for a2 in np.arange(a - 0.03, a + 0.031, 0.005))
+    xs, offs, matched = [], [], 0
+    end = pts[-1][0]
+    for w0 in np.arange(0, end + 8, 8):
+        sub = [q for q in pts if w0 <= q[0] < w0 + 8]
+        if len(sub) < 8:
+            continue
+        h, da = max((hits(a + d, b, sub), -abs(d), d) for d in np.arange(-0.3, 0.3001, 0.005))[0::2]
+        matched += h
+        xs.append(w0 + 4); offs.append(da)
+    sm = [sorted(offs[max(0, i - 1):i + 2])[len(offs[max(0, i - 1):i + 2]) // 2] for i in range(len(offs))]
+    warp = lambda t: a + b * t + float(np.interp(t, xs, sm))
+    return warp, matched, len(pts)
 
 
 # Per difficulty: min gap between melody notes (beats), note width, hold threshold (beats),
