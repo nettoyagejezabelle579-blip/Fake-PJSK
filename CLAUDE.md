@@ -15,7 +15,7 @@ Project Sekai–style web rhythm game. Plain HTML/CSS/JS, no framework, no build
 ## Core rules
 - ALL timing uses the Web Audio clock: `audioContext.currentTime` corrected with `audioContext.getOutputTimestamp()`. Never use frame time, `performance.now()` deltas, or rAF timestamps for song position or judgement.
 - rAF is for drawing only; each frame reads song time from audio.js.
-- Exactly 4 wide lanes.
+- 12 lanes (Project Sekai columns). Notes span `w` columns; charts with `"lanes": 12` use columns directly, older 4-lane charts are scaled ×3.
 - Perspective highway: lanes converge toward a vanishing point, notes scale with depth.
 - Generous timing windows (forgiving Perfect/Great/Good; tune in one constants block).
 - UI: large, high-contrast, touch-friendly (big tap targets, readable at arm's length, works on phones).
