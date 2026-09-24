@@ -127,32 +127,42 @@ def build_exact(score, warp, audio_end, level, style='hard'):
         if n['tr'] == 1:
             groups.setdefault(round(n['bs'], 3), []).append(n)
     onsets = sorted(groups)
+    if style in ('easy', 'normal'):                                 # thin: keep >= 3/4 beat (normal) or 1.5 beats (easy) apart
+        mg = 0.75 if style == 'normal' else 1.5
+        kept = []
+        for b in onsets:
+            if kept and b - kept[-1] < mg - 1e-6:
+                if b % 1 == 0 and kept[-1] % 1 != 0 and (len(kept) < 2 or b - kept[-2] >= mg - 1e-6):
+                    kept[-1] = b                                    # prefer the on-beat note
+                continue
+            kept.append(b)
+        onsets = kept
     ps = sorted(max(x['p'] for x in groups[b]) for b in onsets)
     lo, hi = ps[len(ps) // 20], ps[len(ps) * 19 // 20]
     out, last_col = [], 4
     for i, b in enumerate(onsets):
         g = groups[b]
         top = max(x['p'] for x in g)
-        w = 3 if len(g) == 1 or style != 'hard' else min(6, 3 + len(g) - 1)   # hard: chords read as wider notes
+        w = {'easy': 5, 'normal': 4}.get(style, 3 if len(g) == 1 or style != 'hard' else min(6, 3 + len(g) - 1))
         col = round((min(hi, max(lo, top)) - lo) / max(1, hi - lo) * (LANES - w))
         nxt = onsets[i + 1] if i + 1 < len(onsets) else b + 8
         gap = nxt - b
-        reach = 2 if gap <= 0.26 else 4 if gap <= 0.51 else LANES
+        reach = 2 if gap <= 0.26 else (3 if style in ('easy', 'normal') else 4) if gap <= 0.51 else LANES
         col = max(0, min(LANES - w, max(last_col - reach, min(last_col + reach, col))))
         dur = max(x['be'] for x in g) - b
         note = dict(t=round(min(warp(beat_s(b)), audio_end), 3), lane=col, w=w, type='tap')
         if dur >= 1 and gap >= dur - 0.05:
             note['type'] = 'hold'
             note['end'] = round(min(warp(beat_s(b + min(dur, gap) - 0.25)), audio_end), 3)
-        elif (gap >= 1 or (style != 'hard' and gap >= 0.5 and (b + gap) % 4 < 0.01)) and dur < 1:
+        elif dur < 1 and (gap >= 1.5 if style in ('easy', 'normal') else gap >= 1 or (style != 'hard' and gap >= 0.5 and (b + gap) % 4 < 0.01)):
             note['type'] = 'flick'                                  # phrase end before a rest / bar line
         out.append(note)
-        if style != 'hard' and len(g) > 1 and note['type'] == 'tap' and gap >= 0.25:
+        if style in ('expert', 'master') and len(g) > 1 and note['type'] == 'tap' and gap >= 0.25:
             m = LANES - col - w if abs(LANES - col - w - col) >= w else (col + w + 1 if col + 2 * w + 1 <= LANES else col - w - 1)
             if 0 <= m <= LANES - w:
                 out.append(dict(t=note['t'], lane=m, w=w, type='tap'))   # chord → second note on the other side
         last_col = col
-    if style != 'hard':                                             # left-hand notes where the melody rests
+    if style in ('expert', 'master'):                               # left-hand notes where the melody rests
         rh = [beat_s(b) for b in onsets]
         holds = [(n['t'], n['end']) for n in out if n['type'] == 'hold']
         side = 0
