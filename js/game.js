@@ -4,16 +4,17 @@ const Game = (() => {
   const WINDOWS = { perfect: 0.060, great: 0.110, good: 0.160 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 4;
+  const LIFE_MAX = 1000, MISS_DAMAGE = 60; // no fail: life only shows how the run went
 
   const state = {
     notes: [], // { time, lane, state: 0 pending | 1 hit | 2 missed, judge }
     running: false,
     duration: 0,
-    score: 0, combo: 0, maxCombo: 0,
+    score: 0, combo: 0, maxCombo: 0, life: LIFE_MAX,
+    lastGain: null,  // { v, time } for the +N next to the score
     counts: { perfect: 0, great: 0, good: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, judge, time }
-    log: [],         // per judged note: { time, tap, dt, judge, at }
     pressed: new Array(LANES).fill(0),
   };
 
@@ -29,10 +30,11 @@ const Game = (() => {
     }
     state.notes = notes.sort((a, b) => a.time - b.time);
     state.score = state.combo = state.maxCombo = 0;
+    state.life = LIFE_MAX;
+    state.lastGain = null;
     state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
     state.lastJudge = null;
     state.effects = [];
-    state.log = [];
   }
 
   async function fetchChart(id, diff) {
@@ -44,15 +46,16 @@ const Game = (() => {
     n.state = judge === 'miss' ? 2 : 1;
     n.judge = judge;
     state.counts[judge]++;
-    state.log.push({ time: n.time, tap: dt == null ? null : t, dt, judge, at: new Date().toISOString() });
     state.lastJudge = { judge, time: t, dt };
     if (judge === 'miss') {
       state.combo = 0;
+      state.life = Math.max(0, state.life - MISS_DAMAGE);
       return;
     }
     state.combo++;
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     state.score += POINTS[judge];
+    state.lastGain = { v: POINTS[judge], time: t };
     state.effects.push({ lane: n.lane, judge, time: t });
   }
 
@@ -90,7 +93,9 @@ const Game = (() => {
       } else if (t - n.time > WINDOWS.good) record(n, 'miss', t);
     }
     state.effects = state.effects.filter((f) => t - f.time < 0.5);
-    if (t > state.duration + 0.5) finish();
+    // clear ~1 s after the last note is judged (or when the audio runs out)
+    const judged = state.notes.length && state.notes.every((n) => n.state !== 0);
+    if ((judged && t > state.lastTime + 1) || t > state.duration + 0.5) finish(t);
   }
 
   const overlay = document.getElementById('overlay');
@@ -103,7 +108,7 @@ const Game = (() => {
   const DIFFS = ['easy', 'normal', 'hard', 'expert', 'master'];
   const q = new URLSearchParams(location.search);
   const songId = q.get('song') || 'demo';
-  let songTitle = songId;
+  let songTitle = songId, songMeta = null;
   let diff = DIFFS.includes(q.get('diff')) ? q.get('diff') : 'normal';
 
   function selectDiff(d) {
@@ -112,11 +117,11 @@ const Game = (() => {
   }
 
   async function showSong() {
-    const meta = await AudioEngine.loadMeta(songId);
+    const meta = songMeta = await AudioEngine.loadMeta(songId);
     const levels = meta.difficulties || {};
     title.textContent = songTitle = meta.title;
     text.textContent = `${meta.artist} · ${meta.bpm} BPM\nKeys: D F J K (+Space = flick) · or tap, swipe up to flick`;
-    if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; }
+    if (meta.cover) { cover.src = `songs/${songId}/${meta.cover}`; cover.hidden = false; Render.setCover(cover.src); }
     const avail = DIFFS.filter((d) => d in levels);
     diffSelect.replaceChildren(...avail.map((d) => {
       const b = document.createElement('button');
@@ -131,68 +136,61 @@ const Game = (() => {
   }
 
   // Rank by score / max possible score.
-  const RANKS = [['S', 0.9], ['A', 0.8], ['B', 0.7], ['C', 0]];
+  const RANKS = Render.RANKS;
 
-  const exportBtn = document.createElement('button');
-  exportBtn.type = 'button';
-  exportBtn.id = 'export-btn';
-  exportBtn.textContent = 'EXPORT CSV';
-  exportBtn.hidden = true;
-  btn.after(exportBtn);
-  const songsBtn = exportBtn.cloneNode();
+  const songsBtn = document.createElement('button');
+  songsBtn.type = 'button';
   songsBtn.id = 'songs-btn';
   songsBtn.textContent = 'SONG SELECT';
-  exportBtn.after(songsBtn);
+  songsBtn.hidden = true;
+  btn.after(songsBtn);
   songsBtn.addEventListener('click', () => { location.search = ''; });
 
-  function exportCsv() {
-    const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const ms = (v) => v == null ? '' : (v * 1000).toFixed(1);
-    const rows = [['song', 'difficulty', 'note_time', 'tap_time', 'offset_ms', 'judgment', 'timestamp']];
-    for (const e of state.log) {
-      rows.push([q(songTitle), diff, e.time.toFixed(3), e.tap == null ? '' : e.tap.toFixed(3), ms(e.dt), e.judge, e.at]);
-    }
-    const url = URL.createObjectURL(new Blob([rows.map((r) => r.join(',')).join('\n') + '\n'], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${songId}_${diff}_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  exportBtn.addEventListener('click', exportCsv);
-
-  function finish() {
+  // Song over: stop judging, save best/clear, then the renderer plays the ending (clear banner → rank)
+  // and frame() hands off to the result screen.
+  let result = null;
+  function finish(t) {
     state.running = false;
-    AudioEngine.stop();
-    const c = state.counts;
+    document.body.classList.remove('playing');
+    document.body.classList.add('ending');
     const ratio = state.notes.length ? state.score / (state.notes.length * POINTS.perfect) : 0;
     const rank = RANKS.find(([, min]) => ratio >= min)[0];
-    const offs = state.log.filter((e) => e.dt != null).map((e) => e.dt);
-    const avg = offs.length ? offs.reduce((a, b) => a + b, 0) / offs.length * 1000 : 0;
-    title.textContent = `Rank ${rank}`;
+    let best = 0;
     try { // read by the song select (high score pill, clear diamonds)
       const k = `pjsk.best.${songId}.${diff}`;
-      if (state.score > (+localStorage.getItem(k) || 0)) localStorage.setItem(k, state.score);
+      best = +localStorage.getItem(k) || 0;
+      if (state.score > best) localStorage.setItem(k, state.score);
       localStorage.setItem(`pjsk.clear.${songId}.${diff}`, '1');
     } catch (e) { /* storage unavailable */ }
-    text.textContent = `Score ${state.score}\nMax combo ${state.maxCombo}\n` +
-      `Perfect ${c.perfect} · Great ${c.great} · Good ${c.good} · Miss ${c.miss}\n` +
-      `Avg offset ${avg >= 0 ? '+' : ''}${avg.toFixed(1)} ms ${avg < 0 ? '(early)' : avg > 0 ? '(late)' : ''}`;
-    btn.textContent = 'RETRY';
-    exportBtn.hidden = songsBtn.hidden = false;
-    overlay.classList.remove('hidden');
+    result = {
+      id: songId, meta: songMeta || { title: songTitle }, diff, score: state.score, best, ratio, rank,
+      counts: { ...state.counts }, maxCombo: state.maxCombo,
+      onRetry: start, onNext: () => { location.search = ''; },
+    };
+    state.ending = { at: t };
+  }
+
+  function showResult() {
+    state.ending = null;
+    document.body.classList.remove('ending');
+    AudioEngine.stop();
+    Menu.showResult(result);
   }
 
   async function start() {
     await AudioEngine.init();
     const [{ buffer }, chart] = await Promise.all([AudioEngine.loadSong(songId), fetchChart(songId, diff)]);
     loadChart(chart);
-    const last = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
+    Menu.hideResult();
+    state.ending = null;
+    const last = state.lastTime = state.notes.length ? state.notes[state.notes.length - 1].time : 0;
     state.duration = Math.max(buffer.duration, last + 1);
     overlay.classList.add('hidden');
-    exportBtn.hidden = songsBtn.hidden = true;
+    songsBtn.hidden = true;
     AudioEngine.play(buffer);
     state.running = true;
+    paused = false;
+    document.body.classList.add('playing');
   }
 
   function frame() {
@@ -200,6 +198,10 @@ const Game = (() => {
       const t = AudioEngine.songTime();
       update(t);
       Render.draw(t, state);
+    } else if (state.ending) {
+      const t = AudioEngine.songTime();
+      Render.draw(t, state);
+      if (t - state.ending.at > Render.END_A + Render.END_B) showResult();
     }
     requestAnimationFrame(frame);
   }
@@ -217,7 +219,39 @@ const Game = (() => {
     },
     (lane, stamp) => { if (state.running) hit(lane, AudioEngine.songTimeAt(stamp), true); },
   );
-  btn.addEventListener('click', start);
+  // Pause: suspends the AudioContext (the song clock), shows the overlay with Resume + Song Select.
+  let paused = false;
+  const pauseBtn = document.createElement('button');
+  pauseBtn.type = 'button';
+  pauseBtn.id = 'pause-btn';
+  pauseBtn.setAttribute('aria-label', 'Pause');
+  document.body.append(pauseBtn);
+  async function pause() {
+    if (!state.running) return;
+    state.running = false;
+    paused = true;
+    document.body.classList.remove('playing');
+    await AudioEngine.pause();
+    title.textContent = 'PAUSED';
+    text.textContent = '';
+    btn.textContent = 'RESUME';
+    songsBtn.hidden = false;
+    overlay.classList.add('paused');
+    overlay.classList.remove('hidden');
+  }
+  async function resume() {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('paused');
+    songsBtn.hidden = true;
+    await AudioEngine.resume();
+    paused = false;
+    state.running = true;
+    document.body.classList.add('playing');
+  }
+  pauseBtn.addEventListener('click', pause);
+  window.addEventListener('keydown', (e) => { if (e.code === 'Escape') (paused ? resume() : pause()); });
+
+  btn.addEventListener('click', () => (paused ? resume() : start()));
   showSong();
   Render.draw(-10, state);
   requestAnimationFrame(frame);
