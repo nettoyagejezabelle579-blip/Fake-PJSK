@@ -1,7 +1,7 @@
 // Game state, chart loading, judgement, score/combo, main loop.
 const Game = (() => {
-  // Timing windows (± seconds). Generous by design.
-  const WINDOWS = { perfect: 0.060, great: 0.110, good: 0.160 };
+  // Timing windows (± seconds).
+  const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105 }; // about Project Sekai's; a tap only counts when the note is near the line
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 12;     // Project Sekai-style columns
   const SLACK = 1;      // a press hits notes within this many columns of it (generous for touch)

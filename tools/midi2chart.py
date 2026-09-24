@@ -64,25 +64,47 @@ def onset_groups(notes, tol=0.03):
 
 
 def time_warp(score, raw):
-    """Robust linear score-time → audio-time map: match each melody onset to the nearest raw onset,
-    refit, tighten the tolerance, repeat (a free-form warp drifted on long songs)."""
-    ro = sorted(n['s'] for n in raw if n['tr'] == 1) or sorted(n['s'] for n in raw)
-    so = sorted({round(n['s'], 3) for n in score if n['tr'] == 1})
-    a = ro[0] - so[0]
-    b = 1.0
-    for it in range(10):
-        tol = 0.25 if it < 3 else 0.08
-        xs, ys = [], []
-        for x in so:
-            p = a + b * x
-            j = bisect.bisect_left(ro, p)
-            c = min((ro[k] for k in (j - 1, j) if 0 <= k < len(ro)), key=lambda r: abs(r - p))
-            if abs(c - p) < tol:
-                xs.append(x); ys.append(c)
-        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-        b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-        a = my - b * mx
-    return (lambda t: a + b * t), len(xs), len(so)
+    """Score-time → audio-time map from pitch matching against the raw (audio-timed) transcription.
+    1) global tempo scale + offset maximising same-pitch-class onsets within 35 ms;
+    2) per-8-second-window offset correction (handles ritardandos / tempo changes that the
+       score states differently from the recording), smoothed and linearly interpolated."""
+    import numpy as np
+    byp = {}
+    for n in raw:
+        byp.setdefault(n['p'] % 12, []).append(n['s'])
+    byp = {p: np.array(sorted(v)) for p, v in byp.items()}
+    pts = [(n['s'], n['p'] % 12) for n in score if n['tr'] == 1]
+
+    def hits(a, b, sub, tol=0.035):
+        c = 0
+        for x, p in sub:
+            A = byp.get(p)
+            if A is None:
+                continue
+            t = a + b * x
+            j = np.searchsorted(A, t)
+            if (j < len(A) and abs(A[j] - t) < tol) or (j > 0 and abs(A[j - 1] - t) < tol):
+                c += 1
+        return c
+
+    first = min(v[0] for v in byp.values()) - pts[0][0]
+    coarse = pts[::3]
+    _, a, b = max((hits(a, b, coarse), a, b) for b in np.arange(0.97, 1.0301, 0.0005)
+                  for a in np.arange(first - 0.5, first + 0.5, 0.02))
+    _, a, b = max((hits(a2, b2, pts), a2, b2) for b2 in np.arange(b - 0.0005, b + 0.00051, 0.0001)
+                  for a2 in np.arange(a - 0.03, a + 0.031, 0.005))
+    xs, offs, matched = [], [], 0
+    end = pts[-1][0]
+    for w0 in np.arange(0, end + 8, 8):
+        sub = [q for q in pts if w0 <= q[0] < w0 + 8]
+        if len(sub) < 8:
+            continue
+        h, da = max((hits(a + d, b, sub), -abs(d), d) for d in np.arange(-0.3, 0.3001, 0.005))[0::2]
+        matched += h
+        xs.append(w0 + 4); offs.append(da)
+    sm = [sorted(offs[max(0, i - 1):i + 2])[len(offs[max(0, i - 1):i + 2]) // 2] for i in range(len(offs))]
+    warp = lambda t: a + b * t + float(np.interp(t, xs, sm))
+    return warp, matched, len(pts)
 
 
 # Per difficulty: min gap between melody notes (beats), note width, hold threshold (beats),
@@ -96,7 +118,7 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
 }
 
 
-def build_exact(score, warp, audio_end, level):
+def build_exact(score, warp, audio_end, level, style='hard'):
     """One note per right-hand onset at its exact MIDI time (no grid, no thinning, no extra notes).
     Chords become one wider note; notes held >= 1 beat become holds; the last note of a phrase is a flick."""
     beat_s = lambda b: score.beat_to_s(b)
@@ -105,28 +127,55 @@ def build_exact(score, warp, audio_end, level):
         if n['tr'] == 1:
             groups.setdefault(round(n['bs'], 3), []).append(n)
     onsets = sorted(groups)
+    if style in ('easy', 'normal'):                                 # thin: keep >= 3/4 beat (normal) or 1.5 beats (easy) apart
+        mg = 0.75 if style == 'normal' else 1.5
+        kept = []
+        for b in onsets:
+            if kept and b - kept[-1] < mg - 1e-6:
+                if b % 1 == 0 and kept[-1] % 1 != 0 and (len(kept) < 2 or b - kept[-2] >= mg - 1e-6):
+                    kept[-1] = b                                    # prefer the on-beat note
+                continue
+            kept.append(b)
+        onsets = kept
     ps = sorted(max(x['p'] for x in groups[b]) for b in onsets)
     lo, hi = ps[len(ps) // 20], ps[len(ps) * 19 // 20]
     out, last_col = [], 4
     for i, b in enumerate(onsets):
         g = groups[b]
         top = max(x['p'] for x in g)
-        w = 3 if len(g) == 1 else min(6, 3 + len(g) - 1)          # chords read as wider notes
+        w = {'easy': 5, 'normal': 4}.get(style, 3 if len(g) == 1 or style != 'hard' else min(6, 3 + len(g) - 1))
         col = round((min(hi, max(lo, top)) - lo) / max(1, hi - lo) * (LANES - w))
         nxt = onsets[i + 1] if i + 1 < len(onsets) else b + 8
         gap = nxt - b
-        reach = 2 if gap <= 0.26 else 4 if gap <= 0.51 else LANES
+        reach = 2 if gap <= 0.26 else (3 if style in ('easy', 'normal') else 4) if gap <= 0.51 else LANES
         col = max(0, min(LANES - w, max(last_col - reach, min(last_col + reach, col))))
         dur = max(x['be'] for x in g) - b
         note = dict(t=round(min(warp(beat_s(b)), audio_end), 3), lane=col, w=w, type='tap')
         if dur >= 1 and gap >= dur - 0.05:
             note['type'] = 'hold'
             note['end'] = round(min(warp(beat_s(b + min(dur, gap) - 0.25)), audio_end), 3)
-        elif gap >= 1 and dur < 1:
-            note['type'] = 'flick'                                  # phrase end before a rest
+        elif dur < 1 and (gap >= 1.5 if style in ('easy', 'normal') else gap >= 1 or (style != 'hard' and gap >= 0.5 and (b + gap) % 4 < 0.01)):
+            note['type'] = 'flick'                                  # phrase end before a rest / bar line
         out.append(note)
+        if style in ('expert', 'master') and len(g) > 1 and note['type'] == 'tap' and gap >= 0.25:
+            m = LANES - col - w if abs(LANES - col - w - col) >= w else (col + w + 1 if col + 2 * w + 1 <= LANES else col - w - 1)
+            if 0 <= m <= LANES - w:
+                out.append(dict(t=note['t'], lane=m, w=w, type='tap'))   # chord → second note on the other side
         last_col = col
-    return out
+    if style in ('expert', 'master'):                               # left-hand notes where the melody rests
+        rh = [beat_s(b) for b in onsets]
+        holds = [(n['t'], n['end']) for n in out if n['type'] == 'hold']
+        side = 0
+        for b in sorted({round(n['bs'], 3) for n in score if n['tr'] == 2} - set(onsets)):
+            x = beat_s(b)
+            j = bisect.bisect_left(rh, x)
+            near = min([abs(rh[k] - x) for k in (j - 1, j) if 0 <= k < len(rh)] or [9])
+            t = round(min(warp(x), audio_end), 3)
+            if near < 0.2 or any(h0 - 0.1 <= t <= h1 + 0.1 for h0, h1 in holds):
+                continue
+            out.append(dict(t=t, lane=0 if side else LANES - 3, w=3, type='tap'))
+            side ^= 1
+    return sorted(out, key=lambda n: (n['t'], n['lane']))
 
 
 def build(score, warp, beat, cfg, audio_end):
@@ -222,7 +271,7 @@ def main():
     print(f'bpm {bpm:.2f}, {anchors}/{groups} onset groups anchored, audio span {warp(0):.2f}s → {warp(score[-1]["s"]):.2f}s')
     if '--exact' in sys.argv:                          # follow the score note-for-note
         name = sys.argv[sys.argv.index('--exact') + 1]
-        notes = build_exact(score, warp, max(n['e'] for n in raw) - 0.1, DIFFS[name]['level'])
+        notes = build_exact(score, warp, max(n['e'] for n in raw) - 0.1, DIFFS[name]['level'], name)
         with open(f'{out_dir}/{name}.json', 'w') as f:
             json.dump(dict(lanes=LANES, bpm=round(bpm, 2), offset=0, notes=notes), f, separators=(',', ':'))
         kinds = {k: sum(n['type'] == k for n in notes) for k in ('tap', 'hold', 'flick')}
