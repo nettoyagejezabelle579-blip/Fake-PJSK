@@ -1,7 +1,9 @@
 // Game state, chart loading, judgement, score/combo, main loop.
 const Game = (() => {
   // Timing windows (± seconds).
-  const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105 }; // about Project Sekai's; a tap only counts when the note is near the line
+  const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105 }; // late side
+  // Early side is tighter: a tap before the note reaches the line only counts once it is right at the line.
+  const EARLY = { perfect: 0.035, great: 0.050, good: 0.065 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 12;     // Project Sekai-style columns
   const SLACK = 1;      // a press hits notes within this many columns of it (generous for touch)
@@ -64,7 +66,7 @@ const Game = (() => {
     state.effects.push({ lane: n.lane, w: n.w, judge, time: t });
   }
 
-  const grade = (a) => a <= WINDOWS.perfect ? 'perfect' : a <= WINDOWS.great ? 'great' : a <= WINDOWS.good ? 'good' : 'miss';
+  const grade = (dt) => { const W = dt < 0 ? EARLY : WINDOWS, a = Math.abs(dt); return a <= W.perfect ? 'perfect' : a <= W.great ? 'great' : a <= W.good ? 'good' : 'miss'; };
 
   // Does a press over columns c0..c1 reach note n (its span widened by SLACK)?
   const covers = (n, c0, c1) => n.lane <= c1 + SLACK && n.lane + n.w - 1 >= c0 - SLACK;
@@ -76,8 +78,8 @@ const Game = (() => {
       if (n.state !== 0 || n.type === 'tail' || !covers(n, c0, c1) || (n.type === 'flick') !== flick) continue;
       const dt = t - n.time;
       if (dt > WINDOWS.good) continue;  // too late; update() will miss it
-      if (dt < -WINDOWS.good) return;   // earliest candidate is still too far away
-      record(n, grade(Math.abs(dt)), t, dt);
+      if (dt < -EARLY.good) return;     // earliest candidate is still too far away
+      record(n, grade(dt), t, dt);
       if (n.type === 'hold') n.held = true;
       return;
     }
