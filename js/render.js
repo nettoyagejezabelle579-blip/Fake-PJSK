@@ -2,14 +2,15 @@
 const Render = (() => {
   const LANES = 12;      // Project Sekai-style columns; notes span n.w columns
   const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
-  const NOTE_DEPTH = 0.0065;
+  const NOTE_DEPTH = 0.0085;
   const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
   const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], miss: ['#f2f2f7', '#a8a6b8'] };
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
   const NOTE_PAL = {
-    tap: { top: '#ffffff', mid: '#8fdcff', side: '#2f7fd8', edge: '#3fb4ff', cap: '#1f5fd0', glow: '#5fd0ff' },
-    hold: { top: '#e8fff2', mid: '#45e59a', side: '#12935c', edge: '#2ed889', cap: '#0b8a52', glow: '#4dffa6' },
-    flick: { top: '#fff2f8', mid: '#ff7fb5', side: '#c9245f', edge: '#ff4f94', cap: '#d8175e', glow: '#ff5fa0' },
+    // white face, thick coloured rim, small caps at both ends, glow (Project Sekai look)
+    tap: { face0: '#ffffff', face1: '#eef0ff', rim: '#b9a8ff', side: '#8a7ce8', cap: '#5f8dff', glow: '#b4a4ff' },
+    hold: { face0: '#f2fff8', face1: '#d4fbe6', rim: '#7eefb4', side: '#3fcf86', cap: '#2fbf7f', glow: '#7dffc0' },
+    flick: { face0: '#fff5fa', face1: '#ffe2ef', rim: '#ff8fbe', side: '#e0508c', cap: '#ff4f94', glow: '#ff8fc0' },
   };
   // Score rank thresholds (score / max score); shared with the results screen.
   const RANKS = [['S', 0.9], ['A', 0.75], ['B', 0.6], ['C', 0.45], ['D', 0]];
@@ -218,28 +219,41 @@ const Render = (() => {
   function drawNote(G, d, lane, w, type, alpha) {
     const P = NOTE_PAL[type] || NOTE_PAL.tap;
     const u0 = laneU(lane) + 0.012, u1 = laneU(lane + w) - 0.012;
-    const a = proj(G, d - NOTE_DEPTH, u0), b = proj(G, d - NOTE_DEPTH, u1), c = proj(G, d + NOTE_DEPTH, u1), e = proj(G, d + NOTE_DEPTH, u0);
-    const th = 7 * a.s;
+    const pts = (d0, d1, v0, v1) => [proj(G, d0, v0), proj(G, d0, v1), proj(G, d1, v1), proj(G, d1, v0)];
+    const path = (q) => { g.beginPath(); g.moveTo(q[0].x, q[0].y); for (let i = 1; i < 4; i++) g.lineTo(q[i].x, q[i].y); g.closePath(); };
+    const q = pts(d - NOTE_DEPTH, d + NOTE_DEPTH, u0, u1), s0 = q[0].s;
+    const rimW = Math.max(3, 9 * s0), th = 6 * s0;
     g.globalAlpha = alpha;
-    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(b.x, b.y + th); g.lineTo(a.x, a.y + th); g.closePath();
-    g.fillStyle = P.side; g.fill();
-    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(e.x, e.y); g.closePath();
-    const fg = g.createLinearGradient(0, e.y, 0, a.y);
-    fg.addColorStop(0, P.top); fg.addColorStop(1, P.mid);
-    g.shadowColor = P.glow; g.shadowBlur = 12 * a.s;
-    g.fillStyle = fg; g.fill();
-    g.shadowBlur = 0;
     g.lineJoin = 'round';
-    g.lineWidth = Math.max(2, 5 * a.s); g.strokeStyle = 'rgba(10,8,40,0.9)'; g.stroke(); // dark rim: readable on any background
-    g.lineWidth = Math.max(1, 2.5 * a.s); g.strokeStyle = P.edge; g.stroke();
-    const cw = (u1 - u0) * 0.07;
+    // underside band (thickness)
+    g.beginPath(); g.moveTo(q[0].x, q[0].y); g.lineTo(q[1].x, q[1].y); g.lineTo(q[1].x, q[1].y + th); g.lineTo(q[0].x, q[0].y + th); g.closePath();
+    g.lineWidth = rimW; g.strokeStyle = P.side; g.stroke(); g.fillStyle = P.side; g.fill();
+    // glowing coloured rim (thick round-joined stroke gives rounded corners)
+    path(q);
+    g.shadowColor = P.glow; g.shadowBlur = 16 * s0;
+    g.lineWidth = rimW; g.strokeStyle = P.rim; g.stroke(); g.fillStyle = P.rim; g.fill();
+    g.shadowBlur = 0;
+    // white face
+    const iu = (u1 - u0) * 0.012;
+    const f = pts(d - NOTE_DEPTH * 0.55, d + NOTE_DEPTH * 0.55, u0 + iu, u1 - iu);
+    path(f);
+    const fg = g.createLinearGradient(0, f[3].y, 0, f[0].y);
+    fg.addColorStop(0, P.face0); fg.addColorStop(1, P.face1);
+    g.lineWidth = Math.max(1, 3 * s0); g.strokeStyle = P.face0; g.stroke();
+    g.fillStyle = fg; g.fill();
+    // end caps
+    const cw = Math.min(0.05, (u1 - u0) * 0.08);
     g.fillStyle = P.cap;
-    quad(G, d - NOTE_DEPTH * 0.45, d + NOTE_DEPTH * 0.45, u0 + cw * 0.5, u0 + cw * 1.5); g.fill();
-    quad(G, d - NOTE_DEPTH * 0.45, d + NOTE_DEPTH * 0.45, u1 - cw * 1.5, u1 - cw * 0.5); g.fill();
-    if (type === 'flick') {
-      const m = proj(G, d + NOTE_DEPTH, (u0 + u1) / 2), aw = (u1 - u0) * G.half * 0.22 * m.s;
-      g.beginPath(); g.moveTo(m.x - aw, m.y - 3 * m.s); g.lineTo(m.x, m.y - aw * 1.1); g.lineTo(m.x + aw, m.y - 3 * m.s); g.closePath();
-      g.fillStyle = P.cap; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, 2 * m.s); g.stroke();
+    for (const [v0, v1] of [[u0 + cw * 0.4, u0 + cw * 1.4], [u1 - cw * 1.4, u1 - cw * 0.4]]) {
+      path(pts(d - NOTE_DEPTH * 0.4, d + NOTE_DEPTH * 0.4, v0, v1));
+      g.lineWidth = Math.max(1, 2 * s0); g.strokeStyle = P.cap; g.stroke(); g.fill();
+    }
+    if (type === 'flick') { // arrow above the note
+      const m = proj(G, d + NOTE_DEPTH, (u0 + u1) / 2), aw = Math.min(0.25, (u1 - u0) * 0.22) * G.half * m.s;
+      g.beginPath(); g.moveTo(m.x - aw, m.y - 4 * m.s); g.lineTo(m.x, m.y - aw * 1.2); g.lineTo(m.x + aw, m.y - 4 * m.s); g.closePath();
+      g.shadowColor = P.glow; g.shadowBlur = 10 * m.s;
+      g.fillStyle = P.cap; g.fill(); g.shadowBlur = 0;
+      g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 3 * m.s); g.stroke();
     }
     g.globalAlpha = 1;
   }
@@ -319,7 +333,7 @@ const Render = (() => {
       const d0 = n.state === 1 ? 0 : Math.max(near, (n.time - t) / LOOKAHEAD), d1 = Math.min(far, (n.tail.time - t) / LOOKAHEAD);
       if (d1 <= d0) continue;
       quad(G, d0, d1, laneU(n.lane) + 0.035, laneU(n.lane + n.w) - 0.035);
-      g.fillStyle = n.held ? 'rgba(110,255,190,0.5)' : 'rgba(110,255,190,0.3)';
+      g.fillStyle = n.held ? 'rgba(125,245,190,0.55)' : 'rgba(125,245,190,0.38)';
       g.fill();
       if (d1 < far) drawNote(G, d1, n.lane, n.w, 'hold', 0.85);
     }
