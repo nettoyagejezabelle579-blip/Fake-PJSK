@@ -40,6 +40,7 @@ const Input = (() => {
       e.preventDefault();
       const p = local(e);
       const col = Render.laneAtX(p.x);
+      if (col < 0) return; // touches outside the lanes do nothing
       pointers.set(e.pointerId, { col, y: p.y, flicked: false });
       onPress(col, col, e.timeStamp);
     });

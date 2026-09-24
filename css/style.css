@@ -53,7 +53,6 @@ html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow
 .menu-burger { grid-area: 1 / 4; align-self: start; justify-self: end; position: relative; margin-top: clamp(4px, 1.4cqh, 10px); }
 .menu-burger::after { content: "!"; position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border: 2px solid #fff; border-radius: 50%;
   background: #ff4d8d; color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
-body:has(> .menu) #fs-btn { display: none; }
 .menu-empty { margin: auto; padding: 4cqh; opacity: 0.85; }
 
 /* sidebar */
@@ -170,8 +169,6 @@ body:has(> .menu) #fs-btn { display: none; }
 #songs-btn { font-size: 24px; font-weight: 800; min-width: 240px; min-height: 72px; border: 3px solid #33e0ff;
   border-radius: 20px; background: transparent; color: #33e0ff; cursor: pointer; }
 #songs-btn[hidden] { display: none; }
-#fs-btn { position: fixed; z-index: 20; top: max(8px, var(--sat)); right: max(8px, var(--sar)); width: 48px; height: 48px;
-  font-size: 26px; border: 2px solid rgba(255,255,255,0.6); border-radius: 12px; background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; }
 /* Result screen */
 .result { position: fixed; inset: 0; z-index: 30; overflow: hidden; color: #fff; font-weight: 800;
   font-family: "M PLUS Rounded 1c", "Nunito", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -241,7 +238,6 @@ body:has(> .menu) #fs-btn { display: none; }
 #pause-btn::before, #pause-btn::after { content: ""; position: absolute; top: 28%; width: 15%; height: 44%; border-radius: 1px; background: #46456e; }
 #pause-btn::before { left: 31%; } #pause-btn::after { right: 31%; }
 body.playing #pause-btn { display: block; }
-body.playing #fs-btn, body.ending #fs-btn, body:has(> .result) #fs-btn { display: none; }
 /* Upright phone: draw the whole game sideways (body becomes the size container for cq units).
    .cw = top of the game at the phone's right edge, .ccw = at its left edge (picked from device tilt). */
 html.rot body { position: fixed; top: 0; left: 0; width: 100vh; height: 100vw; transform-origin: top left; container-type: size; }
