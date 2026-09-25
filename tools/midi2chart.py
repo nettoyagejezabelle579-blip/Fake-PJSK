@@ -118,6 +118,9 @@ DIFFS = {  # hard = the transcription's melody as written; others simplify or ad
 }
 
 
+WIDTHS = {'easy': (4, 6), 'normal': (3, 5), 'hard': (2, 5), 'expert': (2, 5), 'master': (2, 4)}  # note width range (columns)
+
+
 def build_exact(score, warp, audio_end, level, style='hard'):
     """One note per right-hand onset at its exact MIDI time (no grid, no thinning, no extra notes).
     Chords become one wider note; notes held >= 1 beat become holds; the last note of a phrase is a flick."""
@@ -139,14 +142,21 @@ def build_exact(score, warp, audio_end, level, style='hard'):
         onsets = kept
     ps = sorted(max(x['p'] for x in groups[b]) for b in onsets)
     lo, hi = ps[len(ps) // 20], ps[len(ps) * 19 // 20]
+    vs = sorted(max(x['v'] for x in groups[b]) for b in onsets)
+    vmid = vs[len(vs) // 2]
     out, last_col = [], 4
     for i, b in enumerate(onsets):
         g = groups[b]
         top = max(x['p'] for x in g)
-        w = {'easy': 5, 'normal': 4}.get(style, 3 if len(g) == 1 or style != 'hard' else min(6, 3 + len(g) - 1))
-        col = round((min(hi, max(lo, top)) - lo) / max(1, hi - lo) * (LANES - w))
         nxt = onsets[i + 1] if i + 1 < len(onsets) else b + 8
         gap = nxt - b
+        # width follows the music: accents, downbeats, chords and long notes wide; fast runs narrow
+        e = 0.45 + (0.25 if b % 4 == 0 else 0.12 if b % 1 == 0 else -0.05)
+        e -= 0.35 if gap <= 0.26 else 0.15 if gap <= 0.51 else 0
+        e += 0.2 * (max(x['be'] for x in g) - b >= 1) + 0.12 * (len(g) - 1) + (max(x['v'] for x in g) - vmid) / 50
+        w0, w1 = WIDTHS.get(style, (2, 5))
+        w = w0 + round(min(1, max(0, e)) * (w1 - w0))
+        col = round((min(hi, max(lo, top)) - lo) / max(1, hi - lo) * (LANES - w))
         reach = 2 if gap <= 0.26 else (3 if style in ('easy', 'normal') else 4) if gap <= 0.51 else LANES
         col = max(0, min(LANES - w, max(last_col - reach, min(last_col + reach, col))))
         dur = max(x['be'] for x in g) - b
@@ -158,9 +168,12 @@ def build_exact(score, warp, audio_end, level, style='hard'):
             note['type'] = 'flick'                                  # phrase end before a rest / bar line
         out.append(note)
         if style in ('expert', 'master') and len(g) > 1 and note['type'] == 'tap' and gap >= 0.25:
-            m = LANES - col - w if abs(LANES - col - w - col) >= w else (col + w + 1 if col + 2 * w + 1 <= LANES else col - w - 1)
-            if 0 <= m <= LANES - w:
-                out.append(dict(t=note['t'], lane=m, w=w, type='tap'))   # chord → second note on the other side
+            for w in range(w, 1, -1):                               # chord → second note on the other side (narrow both until it fits)
+                m = LANES - col - w if abs(LANES - col - w - col) >= w else (col + w + 1 if col + 2 * w + 1 <= LANES else col - w - 1)
+                if 0 <= m <= LANES - w:
+                    note['w'] = w
+                    out.append(dict(t=note['t'], lane=m, w=w, type='tap'))
+                    break
         last_col = col
     if style in ('expert', 'master'):                               # left-hand notes where the melody rests
         rh = [beat_s(b) for b in onsets]
@@ -185,10 +198,13 @@ def build_exact(score, warp, audio_end, level, style='hard'):
             b = next((x for x in onsets if abs(warp(beat_s(x)) - n['t']) < 0.002), None)
             if b is None or b % 0.5 or b not in bass or taken[n['t']] > 1 or n['type'] != 'tap' or any(h0 - 0.1 <= n['t'] <= h1 + 0.1 for h0, h1 in holds):
                 continue
-            m = LANES - n['lane'] - n['w'] if abs(LANES - 2 * n['lane'] - n['w']) >= n['w'] else (n['lane'] + n['w'] + 1 if n['lane'] + 2 * n['w'] + 1 <= LANES else n['lane'] - n['w'] - 1)
-            if 0 <= m <= LANES - n['w']:
-                out.append(dict(t=n['t'], lane=m, w=n['w'], type='tap'))
-                taken[n['t']] = 2
+            for w in range(n['w'], 1, -1):
+                m = LANES - n['lane'] - w if abs(LANES - 2 * n['lane'] - w) >= w else (n['lane'] + w + 1 if n['lane'] + 2 * w + 1 <= LANES else n['lane'] - w - 1)
+                if 0 <= m <= LANES - w:
+                    n['w'] = w
+                    out.append(dict(t=n['t'], lane=m, w=w, type='tap'))
+                    taken[n['t']] = 2
+                    break
     return sorted(out, key=lambda n: (n['t'], n['lane']))
 
 
