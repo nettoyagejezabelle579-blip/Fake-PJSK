@@ -1,8 +1,10 @@
 // Canvas drawing: cover-window stage, perspective 4-lane highway, slab notes, judgment bar, hit effects, score/life HUD.
 const Render = (() => {
   const LANES = 12;      // Project Sekai-style columns; notes span n.w columns
-  const SLOPE = 0.8;     // screen scale falls linearly with depth (1 at the line, 0.16 at the far end): notes move down the screen at a steady speed, like Project Sekai
-  const NOTE_DEPTH = 0.02;
+  // Project Sekai's approach curve (as in the Sonolus pjsekai engine): scale = 1.06^(45·(progress−1)),
+  // progress 0 at spawn → 1 at the judgment line; d = 1 − progress.
+  const APPROACH = 45 * Math.log(1.06);
+  const NOTE_DEPTH = 0.008;
   const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
   const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], miss: ['#f2f2f7', '#a8a6b8'] };
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
@@ -195,7 +197,7 @@ const Render = (() => {
 
   // depth d: 0 = judgment line, 1 = far end. u: -1..1 across the highway.
   function proj(G, d, u) {
-    const s = Math.max(0, 1 - d * SLOPE);
+    const s = Math.exp(-APPROACH * d);
     return { x: G.cx + u * G.half * s, y: G.hy + (G.jy - G.hy) * s, s };
   }
 
@@ -278,7 +280,7 @@ const Render = (() => {
     drawStage(t);
 
     // Highway: translucent, running from the bottom edge to the vanishing point
-    const near = (1 - (H - G.hy) / (G.jy - G.hy)) / SLOPE - 0.01, far = 1.2, farL = 1 / SLOPE; // notes appear near the top (scale 0.04)
+    const near = -Math.log((H - G.hy) / (G.jy - G.hy)) / APPROACH - 0.01, far = 1, farL = 4; // spawn at scale 0.07
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
     hg.addColorStop(0, 'rgba(10,6,30,0.78)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.74)'); hg.addColorStop(1, 'rgba(10,6,30,0.7)');
@@ -309,7 +311,7 @@ const Render = (() => {
     }
 
     // Judgment bar: glowing magenta frame split into 12 cells
-    const j0 = -0.035, j1 = 0.04, ju = 1.03;
+    const j0 = -0.011, j1 = 0.012, ju = 1.03;
     quad(G, j0, j1, -ju, ju);
     g.fillStyle = 'rgba(8,4,22,0.62)'; g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1.2;
