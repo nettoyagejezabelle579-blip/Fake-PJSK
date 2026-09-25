@@ -6,11 +6,11 @@
   "bpm": 111,
   "preview": 60,
   "difficulties": {
-    "easy": 6,
-    "normal": 12,
+    "easy": 5,
+    "normal": 10,
     "hard": 19,
-    "expert": 24,
-    "master": 28
+    "expert": 27,
+    "master": 30
   },
   "cover": "cover.jpg"
 }
