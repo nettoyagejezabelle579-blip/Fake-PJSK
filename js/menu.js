@@ -415,3 +415,17 @@ if (matchMedia('(pointer: coarse)').matches) {
   addEventListener('resize', apply);
   apply();
 })();
+
+// iOS home-screen app (any display mode): the viewport stops one status bar above the bottom of the screen.
+// Size the page to the physical screen so there is no black strip.
+if (navigator.standalone) {
+  const fit = () => {
+    const land = innerWidth > innerHeight, h = land ? Math.min(screen.width, screen.height) : 0;
+    const on = land && h > innerHeight && h - innerHeight < 80, root = document.documentElement;
+    root.style.setProperty('--app-h', on ? `${h}px` : '');
+    if (root.classList.contains('ios-app') !== on) { root.classList.toggle('ios-app', on); dispatchEvent(new Event('resize')); }
+  };
+  addEventListener('resize', fit);
+  addEventListener('orientationchange', () => setTimeout(fit, 300));
+  fit();
+}
