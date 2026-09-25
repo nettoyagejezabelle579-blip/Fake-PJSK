@@ -211,10 +211,13 @@ const Render = (() => {
     g.closePath();
   }
 
-  function laneAtX(x) {
+  // Column under a touch at (x, y), following the perspective highway at that height.
+  function laneAtX(x, y) {
     const G = geo();
-    const u = (x - G.cx) / G.half;
-    if (u < -1 || u >= 1) return -1; // outside the highway
+    const s = y === undefined ? 1 : Math.max(0.6, (y - G.hy) / (G.jy - G.hy));
+    const u = (x - G.cx) / (G.half * s);
+    if (u < -1.08 || u >= 1.08) return -1; // outside the highway
+    if (u < -1 || u >= 1) return u < 0 ? 0 : LANES - 1;
     return Math.floor(((u + 1) / 2) * LANES);
   }
 

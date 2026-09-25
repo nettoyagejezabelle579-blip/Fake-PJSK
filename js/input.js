@@ -39,7 +39,7 @@ const Input = (() => {
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       const p = local(e);
-      const col = Render.laneAtX(p.x);
+      const col = Render.laneAtX(p.x, p.y);
       if (col < 0) return; // touches outside the lanes do nothing
       pointers.set(e.pointerId, { col, y: p.y, flicked: false });
       onPress(col, col, e.timeStamp);

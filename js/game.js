@@ -3,7 +3,7 @@ const Game = (() => {
   // Timing windows (± seconds).
   const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105 }; // late side
   // Early side is tighter: a tap before the note reaches the line only counts once it is right at the line.
-  const EARLY = { perfect: 0.035, great: 0.050, good: 0.065 };
+  const EARLY = { perfect: 0.045, great: 0.075, good: 0.100 };
   const POINTS = { perfect: 1000, great: 700, good: 300 };
   const LANES = 12;     // Project Sekai-style columns
   const SLACK = 1;      // a press hits notes within this many columns of it (generous for touch)
