@@ -47,6 +47,7 @@ const AudioEngine = (() => {
   // from: song position (seconds) to start playback at.
   function play(buffer, lead = 0.6, from = 0) {
     stop();
+    dispOff = null;
     source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(ctx.destination);
@@ -78,6 +79,17 @@ const AudioEngine = (() => {
   // Song position (seconds) as heard now.
   function songTime() { return outputTimeAt(performance.now()) - startAt; }
 
+  // Song position for drawing only: the audio-clock position with its per-frame jitter filtered out
+  // (the audio→performance clock offset is low-passed), so fast notes glide instead of stuttering
+  // into double images. Snaps to the real clock on any jump (seek, pause, resume).
+  let dispOff = null;
+  function displayTime() {
+    const now = performance.now() / 1000, off = songTime() - now;
+    if (ctx.state !== 'running' || dispOff === null || Math.abs(off - dispOff) > 0.03) dispOff = off;
+    else dispOff += (off - dispOff) * 0.05;
+    return now + dispOff;
+  }
+
   // Song position (seconds) that was audible when an input event happened.
   function songTimeAt(eventTimeStamp) { return outputTimeAt(eventTimeStamp) - startAt; }
 
@@ -85,5 +97,5 @@ const AudioEngine = (() => {
   const pause = () => ctx.suspend();
   const resume = () => ctx.resume();
 
-  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, pause, resume, songTime, songTimeAt };
+  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, pause, resume, songTime, songTimeAt, displayTime };
 })();
