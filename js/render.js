@@ -47,7 +47,7 @@ const Render = (() => {
   }
 
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // higher costs frames on phones
     W = cv.clientWidth;
     H = cv.clientHeight;
     const cs = getComputedStyle(document.documentElement);
@@ -236,9 +236,9 @@ const Render = (() => {
     g.lineWidth = rimW; g.strokeStyle = P.side; g.stroke(); g.fillStyle = P.side; g.fill();
     // glowing coloured rim (thick round-joined stroke gives rounded corners)
     path(q);
-    g.shadowColor = P.glow; g.shadowBlur = 16 * s0;
+    g.globalAlpha = alpha * 0.35; g.lineWidth = rimW * 2.6; g.strokeStyle = P.glow; g.stroke(); // glow halo (shadowBlur drops frames)
+    g.globalAlpha = alpha;
     g.lineWidth = rimW; g.strokeStyle = P.rim; g.stroke(); g.fillStyle = P.rim; g.fill();
-    g.shadowBlur = 0;
     // white face
     const iu = (u1 - u0) * 0.012;
     const f = pts(d - NOTE_DEPTH * 0.55, d + NOTE_DEPTH * 0.55, u0 + iu, u1 - iu);
@@ -257,8 +257,7 @@ const Render = (() => {
     if (type === 'flick') { // arrow above the note
       const m = proj(G, d + NOTE_DEPTH, (u0 + u1) / 2), aw = Math.min(0.25, (u1 - u0) * 0.22) * G.half * m.s;
       g.beginPath(); g.moveTo(m.x - aw, m.y - 4 * m.s); g.lineTo(m.x, m.y - aw * 1.2); g.lineTo(m.x + aw, m.y - 4 * m.s); g.closePath();
-      g.shadowColor = P.glow; g.shadowBlur = 10 * m.s;
-      g.fillStyle = P.cap; g.fill(); g.shadowBlur = 0;
+      g.fillStyle = P.cap; g.fill();
       g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, 3 * m.s); g.stroke();
     }
     g.globalAlpha = 1;

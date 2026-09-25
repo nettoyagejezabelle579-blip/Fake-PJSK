@@ -210,7 +210,7 @@ const Game = (() => {
     if (state.running) {
       const t = AudioEngine.songTime();
       update(t);
-      Render.draw(t, state);
+      Render.draw(AudioEngine.displayTime(), state); // smoothed for drawing; judgement uses t
     } else if (state.ending) {
       const t = AudioEngine.songTime();
       Render.draw(t, state);
