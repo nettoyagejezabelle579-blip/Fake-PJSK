@@ -1,8 +1,8 @@
 // Canvas drawing: cover-window stage, perspective 4-lane highway, slab notes, judgment bar, hit effects, score/life HUD.
 const Render = (() => {
   const LANES = 12;      // Project Sekai-style columns; notes span n.w columns
-  const PERSP = 5;       // perspective strength: scale at far end = 1 / (1 + PERSP)
-  const NOTE_DEPTH = 0.0085;
+  const SLOPE = 0.8;     // screen scale falls linearly with depth (1 at the line, 0.16 at the far end): notes move down the screen at a steady speed, like Project Sekai
+  const NOTE_DEPTH = 0.02;
   const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
   const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], miss: ['#f2f2f7', '#a8a6b8'] };
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
@@ -195,7 +195,7 @@ const Render = (() => {
 
   // depth d: 0 = judgment line, 1 = far end. u: -1..1 across the highway.
   function proj(G, d, u) {
-    const s = 1 / (1 + d * PERSP);
+    const s = Math.max(0, 1 - d * SLOPE);
     return { x: G.cx + u * G.half * s, y: G.hy + (G.jy - G.hy) * s, s };
   }
 
@@ -278,7 +278,7 @@ const Render = (() => {
     drawStage(t);
 
     // Highway: translucent, running from the bottom edge to the vanishing point
-    const near = (1 / ((H - G.hy) / (G.jy - G.hy)) - 1) / PERSP - 0.01, far = 1.05, farL = 8;
+    const near = (1 - (H - G.hy) / (G.jy - G.hy)) / SLOPE - 0.01, far = 1.2, farL = 1 / SLOPE; // notes appear near the top (scale 0.04)
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
     hg.addColorStop(0, 'rgba(10,6,30,0.78)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.74)'); hg.addColorStop(1, 'rgba(10,6,30,0.7)');
@@ -309,7 +309,7 @@ const Render = (() => {
     }
 
     // Judgment bar: glowing magenta frame split into 12 cells
-    const j0 = -0.009, j1 = 0.011, ju = 1.03;
+    const j0 = -0.035, j1 = 0.04, ju = 1.03;
     quad(G, j0, j1, -ju, ju);
     g.fillStyle = 'rgba(8,4,22,0.62)'; g.fill();
     g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1.2;
