@@ -154,7 +154,7 @@ def build_exact(score, warp, audio_end, level, style='hard'):
         if dur >= 1 and gap >= dur - 0.05:
             note['type'] = 'hold'
             note['end'] = round(min(warp(beat_s(b + min(dur, gap) - 0.25)), audio_end), 3)
-        elif dur < 1 and (gap >= 1.5 if style in ('easy', 'normal') else gap >= 1 or (style != 'hard' and gap >= 0.5 and (b + gap) % 4 < 0.01)):
+        elif dur < 1 and (gap >= 4 if style == 'easy' else gap >= 1.5 if style == 'normal' else gap >= 1 or (style != 'hard' and gap >= 0.5 and (b + gap) % 4 < 0.01)):
             note['type'] = 'flick'                                  # phrase end before a rest / bar line
         out.append(note)
         if style in ('expert', 'master') and len(g) > 1 and note['type'] == 'tap' and gap >= 0.25:
