@@ -393,6 +393,20 @@ async function enterLandscape() {
 if (matchMedia('(pointer: coarse)').matches) {
   for (const ev of ['pointerup', 'touchend', 'click']) document.addEventListener(ev, () => { if (!fsElement()) enterLandscape(); }, true);
 }
+// iPadOS never hides the status bar (clock, battery) for Home Screen web apps and gives them no fullscreen API;
+// only Safari's own fullscreen covers it. If the first tap did not get fullscreen, say so once per launch.
+if (navigator.standalone && matchMedia('(pointer: coarse)').matches) {
+  const tip = document.createElement('div');
+  tip.className = 'fs-tip';
+  tip.textContent = 'To hide the clock and battery: open this site in Safari (not the Home Screen icon) and tap once. It goes fullscreen.';
+  const close = () => tip.remove();
+  tip.addEventListener('click', close);
+  document.addEventListener('pointerup', () => setTimeout(() => {
+    if (fsElement()) return;
+    document.body.append(tip);
+    setTimeout(close, 10000);
+  }, 800), { once: true });
+}
 
 // Always landscape: while the screen is upright, draw the game sideways (html.rot, see style.css).
 // The phone's tilt picks which edge is the top, so either sideways grip works.
