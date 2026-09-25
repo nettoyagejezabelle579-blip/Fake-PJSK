@@ -2,6 +2,14 @@
   --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); }
 html, body { margin: 0; height: 100%; background: #07070f; color: #fff; overflow: hidden;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+/* iOS home-screen app with a translucent status bar: the page is laid out one status bar short, leaving a
+   black strip at the bottom. Stretch it to the full screen. */
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    html, body { height: calc(100% + env(safe-area-inset-top, 0px)); }
+    body { container-type: size; transform: translateZ(0); } /* cq units and fixed screens follow the stretched body */
+  }
+}
 #stage { display: block; width: 100cqw; height: 100cqh; height: 100cqh;
   touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;

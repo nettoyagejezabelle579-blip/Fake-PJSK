@@ -377,13 +377,21 @@ const Menu = (() => {
 
 // Fullscreen + landscape lock; both best-effort (unsupported on some browsers, e.g. iOS).
 // 'landscape' allows both sideways directions; browsers only honour the lock in fullscreen.
+// iPad Safari only has the webkit-prefixed API; iPhone Safari has none (use Add to Home Screen there).
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
 async function enterLandscape() {
-  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* ignore */ }
+  const de = document.documentElement;
+  try {
+    if (!fsElement()) {
+      if (de.requestFullscreen) await de.requestFullscreen({ navigationUI: 'hide' });
+      else if (de.webkitRequestFullscreen) de.webkitRequestFullscreen();
+    }
+  } catch (e) { /* ignore */ }
   try { await screen.orientation.lock('landscape'); } catch (e) { /* ignore */ }
 }
 // Touch devices: any tap (pointerup counts as a user gesture) also goes fullscreen + landscape lock, silently.
 if (matchMedia('(pointer: coarse)').matches) {
-  document.addEventListener('pointerup', () => { if (!document.fullscreenElement) enterLandscape(); }, true);
+  for (const ev of ['pointerup', 'touchend', 'click']) document.addEventListener(ev, () => { if (!fsElement()) enterLandscape(); }, true);
 }
 
 // Always landscape: while the screen is upright, draw the game sideways (html.rot, see style.css).
