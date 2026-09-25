@@ -5,8 +5,8 @@ const Render = (() => {
   // progress 0 at spawn → 1 at the judgment line; d = 1 − progress.
   const APPROACH = 45 * Math.log(1.06);
   const NOTE_DEPTH = 0.008;
-  const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', miss: '#9a9aa8' };
-  const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], miss: ['#f2f2f7', '#a8a6b8'] };
+  const JUDGE_COLORS = { perfect: '#ffe45c', great: '#ff7ad9', good: '#5cd0ff', bad: '#6fe0a4', miss: '#9a9aa8' };
+  const JUDGE_GRAD = { perfect: ['#fff7a8', '#ff8ad8'], great: ['#ffd1f2', '#ff5fc4'], good: ['#d1f0ff', '#4fb4ff'], bad: ['#dcffe9', '#3fcf86'], miss: ['#f2f2f7', '#a8a6b8'] };
   const FX_COLORS = { perfect: '#7ff4ff', great: '#ff9ae0', good: '#8fb8ff' };
   const NOTE_PAL = {
     // white face, thick coloured rim, small caps at both ends, glow (Project Sekai look)
@@ -448,7 +448,7 @@ const Render = (() => {
       g.strokeText(label, 0, 0);
       g.fillStyle = tg; g.fillText(label, 0, 0);
       g.restore();
-      if (j === 'great' || j === 'good') {
+      if (j === 'great' || j === 'good' || j === 'bad') {
         const early = s.lastJudge.dt < 0;
         const jb = Math.max(16, H * 0.05);
         g.font = `800 ${jb * 0.5}px ${FONT}`;
@@ -599,7 +599,7 @@ const Render = (() => {
     g.fillStyle = '#fff'; g.fillText(String(life), be, cy + ch * 0.2);
   }
 
-  const clearLabel = (c) => (!c.miss && !c.good && !c.great ? 'ALL PERFECT!' : !c.miss ? 'FULL COMBO!' : 'LIVE CLEAR!');
+  const clearLabel = (c) => (!c.miss && !c.bad && !c.good && !c.great ? 'ALL PERFECT!' : !c.miss && !c.bad ? 'FULL COMBO!' : 'LIVE CLEAR!');
 
   function labelFill(label, x, w) {
     if (label === 'LIVE CLEAR!') return '#fff6e8';

@@ -1,13 +1,13 @@
 // Game state, chart loading, judgement, score/combo, main loop.
 const Game = (() => {
   // Timing windows (± seconds).
-  const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105 }; // late side
+  const WINDOWS = { perfect: 0.045, great: 0.080, good: 0.105, bad: 0.125 }; // late side
   // Early side is tighter: a tap before the note reaches the line only counts once it is right at the line.
-  const EARLY = { perfect: 0.045, great: 0.075, good: 0.100 };
-  const POINTS = { perfect: 1000, great: 700, good: 300 };
+  const EARLY = { perfect: 0.045, great: 0.075, good: 0.100, bad: 0.115 };
+  const POINTS = { perfect: 1000, great: 700, good: 300, bad: 100 };
   const LANES = 12;     // Project Sekai-style columns
   const SLACK = 1;      // a press hits notes within this many columns of it (generous for touch)
-  const LIFE_MAX = 1000, MISS_DAMAGE = 60; // no fail: life only shows how the run went
+  const LIFE_MAX = 1000, MISS_DAMAGE = 60, BAD_DAMAGE = 30; // no fail: life only shows how the run went
 
   const state = {
     notes: [], // { time, lane (first column), w (columns), state: 0 pending | 1 hit | 2 missed, judge }
@@ -15,7 +15,7 @@ const Game = (() => {
     duration: 0,
     score: 0, combo: 0, maxCombo: 0, life: LIFE_MAX,
     lastGain: null,  // { v, time } for the +N next to the score
-    counts: { perfect: 0, great: 0, good: 0, miss: 0 },
+    counts: { perfect: 0, great: 0, good: 0, bad: 0, miss: 0 },
     lastJudge: null, // { judge, time, dt }
     effects: [],     // { lane, w, judge, time }
     pressed: new Array(LANES).fill(0),
@@ -39,7 +39,7 @@ const Game = (() => {
     state.score = state.combo = state.maxCombo = 0;
     state.life = LIFE_MAX;
     state.lastGain = null;
-    state.counts = { perfect: 0, great: 0, good: 0, miss: 0 };
+    state.counts = { perfect: 0, great: 0, good: 0, bad: 0, miss: 0 };
     state.lastJudge = null;
     state.effects = [];
   }
@@ -59,6 +59,13 @@ const Game = (() => {
       state.life = Math.max(0, state.life - MISS_DAMAGE);
       return;
     }
+    if (judge === 'bad') { // like Project Sekai: some score, but the combo breaks
+      state.combo = 0;
+      state.life = Math.max(0, state.life - BAD_DAMAGE);
+      state.score += POINTS.bad;
+      state.lastGain = { v: POINTS.bad, time: t };
+      return;
+    }
     state.combo++;
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     state.score += POINTS[judge];
@@ -66,7 +73,7 @@ const Game = (() => {
     state.effects.push({ lane: n.lane, w: n.w, judge, time: t });
   }
 
-  const grade = (dt) => { const W = dt < 0 ? EARLY : WINDOWS, a = Math.abs(dt); return a <= W.perfect ? 'perfect' : a <= W.great ? 'great' : a <= W.good ? 'good' : 'miss'; };
+  const grade = (dt) => { const W = dt < 0 ? EARLY : WINDOWS, a = Math.abs(dt); return a <= W.perfect ? 'perfect' : a <= W.great ? 'great' : a <= W.good ? 'good' : a <= W.bad ? 'bad' : 'miss'; };
 
   // Does a press over columns c0..c1 reach note n (its span widened by SLACK)?
   const covers = (n, c0, c1) => n.lane <= c1 + SLACK && n.lane + n.w - 1 >= c0 - SLACK;
@@ -77,8 +84,8 @@ const Game = (() => {
     for (const n of state.notes) {
       if (n.state !== 0 || n.type === 'tail' || !covers(n, c0, c1) || (n.type === 'flick') !== flick) continue;
       const dt = t - n.time;
-      if (dt > WINDOWS.good) continue;  // too late; update() will miss it
-      if (dt < -EARLY.good) return;     // earliest candidate is still too far away
+      if (dt > WINDOWS.bad) continue;   // too late; update() will miss it
+      if (dt < -EARLY.bad) return;      // earliest candidate is still too far away
       record(n, grade(dt), t, dt);
       if (n.type === 'hold') n.held = true;
       return;
@@ -101,7 +108,7 @@ const Game = (() => {
       if (n.type === 'tail') {
         if (n.head.held) { n.head.held = false; record(n, 'perfect', t); }
         else if (n.head.state === 2) record(n, 'miss', t);
-      } else if (t - n.time > WINDOWS.good) record(n, 'miss', t);
+      } else if (t - n.time > WINDOWS.bad) record(n, 'miss', t);
     }
     state.effects = state.effects.filter((f) => t - f.time < 0.5);
     // clear ~1 s after the last note is judged (or when the audio runs out)
