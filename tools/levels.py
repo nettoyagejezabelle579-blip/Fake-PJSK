@@ -2,7 +2,7 @@
 
 Project Sekai levels follow note density (combo per second), weighted toward the hardest stretch,
 plus a little for patterns that need two hands or extra motion (doubles, flicks).
-Reference points (density → level) come from typical official charts; each difficulty stays in its
+Reference points (combo per second → level, see CURVE) come from typical official charts; each difficulty stays in its
 official range and every difficulty is rated above the one below it.
 
 usage: python3 tools/levels.py [song_id ...]   (default: every song in songs/index.json)
@@ -11,12 +11,15 @@ import bisect, json, os, sys
 
 DIFFS = ['easy', 'normal', 'hard', 'expert', 'master']
 RANGE = {'easy': (5, 9), 'normal': (10, 16), 'hard': (15, 24), 'expert': (21, 31), 'master': (26, 37)}
-CURVE = [(0.5, 3), (1.0, 5), (2.0, 9.5), (3.5, 16), (5.5, 24), (8.0, 30), (10.0, 33), (12.0, 36), (15.0, 39)]
+# combo per second → level, fitted to typical official charts (~2 min songs, combo incl. hold ticks):
+# Easy 5 ≈ 1.5/s, Normal 10 ≈ 2.8/s, Hard 17 ≈ 4.5/s, Expert 24 ≈ 6.5/s, Master 30 ≈ 8.5/s
+CURVE = [(0.5, 2), (1.5, 5), (2.0, 7), (2.8, 10), (3.5, 13), (4.5, 17), (5.5, 21), (6.5, 24), (7.5, 27), (8.5, 30),
+         (10.0, 33), (12.0, 36), (15.0, 39)]
 
 
-def density(notes):
+def density(notes, beat):
     """(combo per second over the whole chart, busiest 10 s), doubles share, flick share."""
-    combo = len(notes) + sum(n.get('type') == 'hold' for n in notes)   # hold = head + tail
+    combo = len(notes) + sum(1 + int((n['end'] - n['t']) / beat) for n in notes if n.get('type') == 'hold')  # hold = head + ticks + tail
     ts = sorted(n['t'] for n in notes)
     span = max(max(n.get('end', n['t']) for n in notes) - ts[0], 10)
     peak = max(bisect.bisect_left(ts, t + 10) - bisect.bisect_left(ts, t) for t in ts) / 10
@@ -25,14 +28,14 @@ def density(notes):
     return combo / span, peak, doubles, flicks
 
 
-def level(notes, diff):
-    avg, peak, doubles, flicks = density(notes)
+def level(notes, diff, beat):
+    avg, peak, doubles, flicks = density(notes, beat)
     d = 0.6 * avg + 0.4 * peak
     for (x0, y0), (x1, y1) in zip(CURVE, CURVE[1:]):
         if d <= x1 or (x1, y1) == CURVE[-1]:
             lv = y0 + (y1 - y0) * (d - x0) / (x1 - x0)
             break
-    lv += 4 * doubles + 3 * flicks
+    lv += 2 * doubles + 2 * flicks
     lo, hi = RANGE[diff]
     return max(lo, min(hi, round(lv)))
 
@@ -49,7 +52,7 @@ def rate(song):
         notes = json.load(open(path)).get('notes') or []
         if not notes:
             continue
-        levels[diff] = prev = max(prev + 1, level(notes, diff))
+        levels[diff] = prev = max(prev + 1, level(notes, diff, 60 / (meta.get('bpm') or 120)))
     meta['difficulties'] = levels
     with open(meta_path, 'w') as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
