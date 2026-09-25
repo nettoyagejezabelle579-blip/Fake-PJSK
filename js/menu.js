@@ -105,7 +105,9 @@ const Menu = (() => {
       const url = `${location.origin}${location.pathname}?${new URLSearchParams({ song: s.id, diff })}`;
       try { await (navigator.share ? navigator.share({ title: m.title, url }) : navigator.clipboard.writeText(url)); } catch (e) { /* cancelled */ }
     });
-    detail.replaceChildren(share, cover, info, diffs);
+    const coverBox = el('div', 'phone-cover-box'); // takes the free height; the cover is the largest square in it
+    coverBox.append(cover);
+    detail.replaceChildren(share, coverBox, info, diffs);
   }
 
   function markSel(scroll) {
