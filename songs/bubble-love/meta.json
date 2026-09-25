@@ -8,9 +8,9 @@
   "difficulties": {
     "easy": 5,
     "normal": 10,
-    "hard": 19,
-    "expert": 27,
-    "master": 30
+    "hard": 16,
+    "expert": 24,
+    "master": 27
   },
   "cover": "cover.jpg"
 }

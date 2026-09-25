@@ -6,9 +6,9 @@
   "difficulties": {
     "easy": 5,
     "normal": 10,
-    "hard": 20,
-    "expert": 22,
-    "master": 27
+    "hard": 17,
+    "expert": 21,
+    "master": 26
   },
   "cover": "cover.svg"
 }
