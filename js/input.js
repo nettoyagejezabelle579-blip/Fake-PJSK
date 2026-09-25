@@ -60,6 +60,11 @@ const Input = (() => {
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // iOS ignores user-scalable=no: fast repeated taps would double-tap-zoom, long holds open the magnifier
+    // loupe and two fingers pinch-zoom. Cancel the native touch gestures on the play field (pointer events still fire).
+    const block = (e) => { if (e.cancelable) e.preventDefault(); };
+    for (const ev of ['touchstart', 'touchmove', 'touchend', 'dblclick']) el.addEventListener(ev, block, { passive: false });
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, block, { passive: false });
   }
 
   return { init };
