@@ -171,10 +171,24 @@ def build_exact(score, warp, audio_end, level, style='hard'):
             j = bisect.bisect_left(rh, x)
             near = min([abs(rh[k] - x) for k in (j - 1, j) if 0 <= k < len(rh)] or [9])
             t = round(min(warp(x), audio_end), 3)
-            if near < 0.2 or any(h0 - 0.1 <= t <= h1 + 0.1 for h0, h1 in holds):
-                continue
+            if near < (0.12 if style == 'master' else 0.2) or any(h0 - 0.1 <= t <= h1 + 0.1 for h0, h1 in holds):
+                continue                                            # master: 16th-note fills too
             out.append(dict(t=t, lane=0 if side else LANES - 3, w=3, type='tap'))
             side ^= 1
+    if style == 'master':                                           # bass on a beat or half-beat under a single melody note → two-hand double
+        bass = {round(n['bs'], 3) for n in score if n['tr'] == 2}
+        holds = [(n['t'], n['end']) for n in out if n['type'] == 'hold']
+        taken = {}
+        for n in out:
+            taken[n['t']] = taken.get(n['t'], 0) + 1
+        for n in list(out):
+            b = next((x for x in onsets if abs(warp(beat_s(x)) - n['t']) < 0.002), None)
+            if b is None or b % 0.5 or b not in bass or taken[n['t']] > 1 or n['type'] != 'tap' or any(h0 - 0.1 <= n['t'] <= h1 + 0.1 for h0, h1 in holds):
+                continue
+            m = LANES - n['lane'] - n['w'] if abs(LANES - 2 * n['lane'] - n['w']) >= n['w'] else (n['lane'] + n['w'] + 1 if n['lane'] + 2 * n['w'] + 1 <= LANES else n['lane'] - n['w'] - 1)
+            if 0 <= m <= LANES - n['w']:
+                out.append(dict(t=n['t'], lane=m, w=n['w'], type='tap'))
+                taken[n['t']] = 2
     return sorted(out, key=lambda n: (n['t'], n['lane']))
 
 
