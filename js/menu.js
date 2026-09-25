@@ -320,7 +320,7 @@ const Menu = (() => {
     if (m.cover) cover.src = `songs/${d.id}/${m.cover}`;
     const info = el('div', 'res-info');
     const badges = el('div', 'res-badges');
-    const lv = el('span', 'res-lv', 'Song Lv. ');
+    const lv = el('span', 'res-lv', 'Lv. ');
     lv.append(el('b', null, (m.difficulties || {})[d.diff] ?? '–'));
     badges.append(el('span', 'res-diff', d.diff.toUpperCase()), lv);
     info.append(el('div', 'res-title', m.title), badges);
@@ -347,10 +347,10 @@ const Menu = (() => {
     bestRow.append(el('span', 'res-label', 'High Score'), digits(d.best, 8)); // previous best, as before this play
     const judges = el('div', 'res-judges');
     const table = el('div', 'res-table');
-    for (const j of ['perfect', 'great', 'good', 'miss']) {
+    for (const j of ['perfect', 'great', 'good', 'bad', 'miss']) {
       const row = el('div', 'res-row');
       row.dataset.j = j;
-      row.append(el('span', 'res-j', j.toUpperCase()), digits(d.counts[j], 4));
+      row.append(el('span', 'res-j', j.toUpperCase()), digits(d.counts[j] || 0, 4));
       table.append(row);
     }
     const combo = el('div', 'res-combo');
