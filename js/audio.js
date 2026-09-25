@@ -9,10 +9,20 @@ const AudioEngine = (() => {
     return ctx.resume();
   }
 
+  // Downloaded bytes are kept (prefetch() starts them early, e.g. when a song is selected in the menu);
+  // the last decoded song is kept too, so Retry starts at once.
+  const bytes = new Map(), fetchBytes = (url) => {
+    if (!bytes.has(url)) bytes.set(url, fetch(url).then((r) => r.arrayBuffer()).catch((e) => { bytes.delete(url); throw e; }));
+    return bytes.get(url);
+  };
+  let decoded = null; // { url, buffer }
   async function load(url) {
-    const res = await fetch(url);
-    return ctx.decodeAudioData(await res.arrayBuffer());
+    if (decoded && decoded.url === url) return decoded.buffer;
+    const buffer = await ctx.decodeAudioData((await fetchBytes(url)).slice(0)); // decode detaches its input
+    decoded = { url, buffer };
+    return buffer;
   }
+  const prefetch = (id, meta) => { fetchBytes(`songs/${id}/${meta.audio}`).catch(() => {}); };
 
   // Song folder songs/<id>/: meta.json + audio file named by meta.audio.
   // meta: { title, artist, cover, audio, bpm, difficulties: { easy, normal, hard } (levels) }
@@ -97,5 +107,5 @@ const AudioEngine = (() => {
   const pause = () => ctx.suspend();
   const resume = () => ctx.resume();
 
-  return { init, load, loadMeta, loadSong, makeMetronome, play, stop, pause, resume, songTime, songTimeAt, displayTime };
+  return { init, load, loadMeta, loadSong, prefetch, makeMetronome, play, stop, pause, resume, songTime, songTimeAt, displayTime };
 })();

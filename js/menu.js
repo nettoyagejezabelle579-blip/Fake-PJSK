@@ -25,19 +25,31 @@ const Menu = (() => {
 
   function stopPreview() {
     clearTimeout(previewTimer);
-    if (preview) { preview.pause(); preview.src = ''; preview = null; }
+    if (preview) { preview.pause(); preview = null; }
   }
 
   // Preview audio only (not gameplay timing), so a plain media element is enough.
+  // meta.previewAudio: a short clip (starts at once); otherwise the full song from meta.preview seconds.
+  // Elements are kept per song, so selecting a song again plays without reloading.
+  const previews = new Map();
+  function previewAudio(s) {
+    if (!previews.has(s.id)) {
+      const a = new Audio(`songs/${s.id}/${s.meta.previewAudio || s.meta.audio}`);
+      a.preload = 'auto';
+      a.volume = 0.8;
+      previews.set(s.id, a);
+    }
+    return previews.get(s.id);
+  }
   function playPreview(s) {
     stopPreview();
-    const a = new Audio(`songs/${s.id}/${s.meta.audio}`);
-    const start = s.meta.preview || 0;
-    a.volume = 0.8;
-    a.addEventListener('loadedmetadata', () => { a.currentTime = Math.min(start, Math.max(0, a.duration - PREVIEW_LEN)); }, { once: true });
+    const a = previewAudio(s), start = s.meta.previewAudio ? 0 : s.meta.preview || 0;
+    const seek = () => { a.currentTime = Math.min(start, Math.max(0, a.duration - PREVIEW_LEN)); };
+    if (a.readyState >= 1) seek(); else a.addEventListener('loadedmetadata', seek, { once: true });
     a.play().catch(() => { /* autoplay blocked until a tap */ });
     preview = a;
     previewTimer = setTimeout(stopPreview, PREVIEW_LEN * 1000);
+    AudioEngine.prefetch(s.id, s.meta); // so Decide starts sooner
   }
 
   const lvl = (s) => (s.meta.difficulties || {})[diff];
@@ -295,6 +307,7 @@ const Menu = (() => {
     renderTabs();
     renderDetail(); // no autoplay preview on load; browsers block it without a gesture
     renderList();
+    for (const x of songs) if (x.meta.previewAudio) previewAudio(x); // short clips: load now, play instantly on tap
   }
 
   // Result screen (after a play): song card with score bar + rank, score / high score, judgement table, combo.

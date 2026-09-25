@@ -5,6 +5,7 @@
   "audio": "song.mp3",
   "bpm": 111,
   "preview": 60,
+  "previewAudio": "preview.mp3",
   "difficulties": {
     "easy": 5,
     "normal": 10,
