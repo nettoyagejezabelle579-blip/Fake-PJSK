@@ -101,6 +101,10 @@ const Menu = (() => {
       b.addEventListener('click', () => { diff = d; store.set('pjsk.diff', d); renderDetail(); renderList(); });
       diffs.append(b);
     }
+    const step = (k) => { const d = avail[avail.indexOf(diff) + k]; if (d) { diff = d; store.set('pjsk.diff', d); renderDetail(); renderList(); } };
+    const arrow = (t, k, label) => btn('phone-arrow', t, label, () => step(k));
+    diffs.prepend(arrow('◀', -1, 'Easier'));
+    diffs.append(arrow('▶', 1, 'Harder'));
     const share = iconBtn('phone-share', 'share', 'Share', async () => {
       const url = `${location.origin}${location.pathname}?${new URLSearchParams({ song: s.id, diff })}`;
       try { await (navigator.share ? navigator.share({ title: m.title, url }) : navigator.clipboard.writeText(url)); } catch (e) { /* cancelled */ }
