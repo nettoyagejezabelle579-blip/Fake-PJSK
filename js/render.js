@@ -23,6 +23,9 @@ const Render = (() => {
   const FX = { glowFade: 0.15, particles: 10, partLife: 0.45, bounce: 0.18, bgDots: 14, bannerIn: 0.35 };
 
   let cv, g, W = 0, H = 0, SA = { l: 0, t: 0, r: 0 }; // safe-area insets (px)
+  // Play area laid out in a 16:9 frame (as Project Sekai): FH tall, FY from the top. Wider screens (phones) use the
+  // full height; narrower ones (iPad) fit the width and centre the frame. EDGE: HUD margin from the screen sides.
+  let FH = 0, FY = 0, EDGE = 0;
   let bg, dot, cover = null;                     // cached background, soft-dot sprite, song cover
   const rmq = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let reduced = !!(rmq && rmq.matches);
@@ -52,6 +55,13 @@ const Render = (() => {
     H = cv.clientHeight;
     const cs = getComputedStyle(document.documentElement);
     SA = { l: parseFloat(cs.getPropertyValue('--sal')) || 0, t: parseFloat(cs.getPropertyValue('--sat')) || 0, r: parseFloat(cs.getPropertyValue('--sar')) || 0 };
+    FH = Math.min(H, W * 9 / 16);
+    FY = (H - FH) / 2;
+    const wide = Math.min(1, Math.max(0, (W / FH - 16 / 9) / (2.17 - 16 / 9)));
+    EDGE = FH * 0.036 * (1 - wide) + W * 0.05 * wide;
+    const pb = Math.min(60, Math.max(40, FH * 0.075));
+    document.documentElement.style.setProperty('--pause-size', `${pb}px`);
+    document.documentElement.style.setProperty('--pause-edge', `${EDGE}px`);
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -192,7 +202,7 @@ const Render = (() => {
   }
 
   function geo() {
-    return { cx: W / 2, hy: -H * 0.02, jy: H * 0.8, half: Math.min((W - SA.l - SA.r) * 0.34, H * 0.8) };
+    return { cx: W / 2, hy: FY - FH * 0.02, jy: FY + FH * 0.8, half: Math.min((W - SA.l - SA.r) * 0.4, FH * 0.68) };
   }
 
   // depth d: 0 = judgment line, 1 = far end. u: -1..1 across the highway.
@@ -282,7 +292,7 @@ const Render = (() => {
     drawStage(t);
 
     // Highway: translucent, running from the bottom edge to the vanishing point
-    const near = -Math.log((H - G.hy) / (G.jy - G.hy)) / APPROACH - 0.01, far = 1, farL = 4; // spawn at scale 0.07
+    const near = -Math.log((H - G.hy) / (G.jy - G.hy)) / APPROACH - 0.01, far = 1, farL = 1.1; // notes spawn at scale 0.07; lanes end in a short flat top just beyond (as in Project Sekai)
     quad(G, near, farL, -1, 1);
     const hg = g.createLinearGradient(0, H, 0, 0);
     hg.addColorStop(0, 'rgba(10,6,30,0.78)'); hg.addColorStop(0.5, 'rgba(10,6,30,0.74)'); hg.addColorStop(1, 'rgba(10,6,30,0.7)');
@@ -325,7 +335,7 @@ const Render = (() => {
     const jl = proj(G, 0, -ju).x, jr = proj(G, 0, ju).x;
     const jg = g.createLinearGradient(jl, 0, jr, 0);
     jg.addColorStop(0, '#b24dff'); jg.addColorStop(0.5, '#ff6ad5'); jg.addColorStop(1, '#b24dff');
-    g.strokeStyle = jg; g.lineWidth = Math.max(3, H * 0.007);
+    g.strokeStyle = jg; g.lineWidth = Math.max(3, FH * 0.007);
     g.shadowColor = '#e05bff'; g.shadowBlur = 14;
     g.stroke();
     g.shadowBlur = 0;
@@ -397,7 +407,7 @@ const Render = (() => {
       const k = age / 0.45, col = FX_COLORS[f.judge];
       const c = proj(G, 0, midU(f)), unit = G.half * (f.w || 3) / LANES; // effect size follows note width
       g.globalAlpha = 0.6 * (1 - k);
-      const bh = H * 0.5, bw0 = unit * 0.55, bw1 = unit * 0.95;
+      const bh = FH * 0.5, bw0 = unit * 0.55, bw1 = unit * 0.95;
       const lg = g.createLinearGradient(0, c.y, 0, c.y - bh);
       lg.addColorStop(0, col); lg.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = lg;
@@ -425,14 +435,14 @@ const Render = (() => {
     // Judgement + combo
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    const big = Math.max(22, H * 0.075);
+    const big = Math.max(22, FH * 0.075);
     if (s.lastJudge && t - s.lastJudge.time < 0.6) {
       const j = s.lastJudge.judge, ja = t - s.lastJudge.time;
       const sc = reduced ? 1 : 1 + 0.25 * Math.max(0, 1 - ja / 0.08);
       g.save();
-      g.translate(G.cx, H * 0.62);
+      g.translate(G.cx, FY + FH * 0.62);
       g.scale(sc, sc);
-      const jb = Math.max(16, H * 0.05);
+      const jb = Math.max(16, FH * 0.05);
       g.font = `900 ${jb}px ${FONT}`;
       const label = j.toUpperCase(), tw = g.measureText(label).width / 2;
       let tg;
@@ -450,16 +460,16 @@ const Render = (() => {
       g.restore();
       if (j === 'great' || j === 'good' || j === 'bad') {
         const early = s.lastJudge.dt < 0;
-        const jb = Math.max(16, H * 0.05);
+        const jb = Math.max(16, FH * 0.05);
         g.font = `800 ${jb * 0.5}px ${FONT}`;
         g.fillStyle = early ? '#7fd8ff' : '#ff9a6b';
-        g.fillText(early ? 'EARLY' : 'LATE', G.cx, H * 0.62 + jb * 0.85);
+        g.fillText(early ? 'EARLY' : 'LATE', G.cx, FY + FH * 0.62 + jb * 0.85);
       }
     }
     if (s.combo >= 2) {
       const ca = t - comboAt;
       const bs = reduced || ca < 0 || ca > FX.bounce ? 1 : 1 + 0.22 * (1 - ca / FX.bounce) ** 2;
-      const cx = Math.min(W - SA.r - big * 1.8, G.cx + G.half * 1.18), cy = H * 0.44;
+      const cx = Math.min(W - SA.r - big * 1.8, G.cx + G.half * (0.87 + 0.31 * Math.min(1, Math.max(0, (W / FH - 16 / 9) / (2.17 - 16 / 9))))), cy = FY + FH * 0.44;
       // pale lavender fill, thin violet outline, soft violet glow (label and number share the look)
       const glowText = (txt, x, y, size) => {
         g.font = `900 ${size}px ${FONT}`;
@@ -487,8 +497,8 @@ const Render = (() => {
   // Top HUD: score rank tile, score bar with C/B/A/S pins, 8-digit score + gain; life bar (pause button is DOM).
   function drawHud(t, s) {
     // Laid out in reference units (rank tile = 273 wide), scaled by k.
-    const k = Math.max(40, H * 0.1) / 273;
-    const x0 = Math.max(SA.l + 8, W * 0.05), y0 = Math.max(0, SA.t);
+    const k = Math.max(40, FH * 0.1) / 273;
+    const x0 = Math.max(SA.l + 8, EDGE), y0 = Math.max(0, SA.t);
     const X = (px) => x0 + (px - 105) * k, Y = (py) => y0 + py * k;
     const max = s.notes.length * 1000 || 1, ratio = Math.min(1, s.score / max);
     const rank = RANKS.find(([, m]) => ratio >= m)[0];
@@ -562,8 +572,8 @@ const Render = (() => {
     }
 
     // life (right): solid capsule tucked under the DOM pause button, folder-tab label, heart + thick bar, value on the top edge
-    const pb = Math.min(60, Math.max(40, H * 0.09));
-    const pl = W - Math.max(SA.r + 8, W * 0.05) - pb, pcx = pl + pb / 2, pcy = Math.max(8, SA.t) + pb / 2;
+    const pb = Math.min(60, Math.max(40, FH * 0.075));
+    const pl = W - Math.max(SA.r + 8, EDGE) - pb, pcx = pl + pb / 2, pcy = Math.max(8, SA.t) + pb / 2;
     const ch = pb * 0.7, cy = pcy - ch / 2, cx0 = pcx - ch * 6.6;
     const life = Math.max(0, s.life ?? 1000), lk = life / 1000;
     const LIFE_BG = '#5d5b8a', lc = lk < 0.3 ? '#ff7b7b' : '#a3f0a0';

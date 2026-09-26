@@ -243,8 +243,8 @@ html.ios-app body { container-type: size; transform: translateZ(0); }
 .res-btn { border: 0; border-radius: 999px; font-size: max(12px, 3cqh); font-weight: 700; }
 .res-retry { width: 12cqw; height: max(32px, 5.2cqh); background: #fff; color: #4a4870; }
 .res-next { width: 13.65cqw; height: max(40px, 7.4cqh); background: #8fe8d6; color: #3b3a5e; }
-#pause-btn { display: none; position: fixed; z-index: 20; top: max(8px, var(--sat)); right: max(calc(var(--sar) + 8px), 5cqw);
-  width: clamp(40px, 9cqh, 60px); height: clamp(40px, 9cqh, 60px); border: 0; border-radius: 50%; background: #fff; cursor: pointer;
+#pause-btn { display: none; position: fixed; z-index: 20; top: max(8px, var(--sat)); right: max(calc(var(--sar) + 8px), var(--pause-edge, 5cqw));
+  width: var(--pause-size, 48px); height: var(--pause-size, 48px); border: 0; border-radius: 50%; background: #fff; cursor: pointer;
   box-shadow: 0 3px 10px rgba(20, 10, 50, 0.5); }
 #pause-btn::before, #pause-btn::after { content: ""; position: absolute; top: 28%; width: 15%; height: 44%; border-radius: 1px; background: #46456e; }
 #pause-btn::before { left: 31%; } #pause-btn::after { right: 31%; }
